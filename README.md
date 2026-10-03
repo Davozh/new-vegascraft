@@ -5,6 +5,8 @@ Minecraft, el suelo de FNV se convierte en colisión invisible en Minecraft, y l
 profundidad) se compone dentro de la de FNV, tapada correctamente por el terreno, las rocas y los edificios. Puedes
 construir con bloques de Minecraft en el Mojave.
 
+![Un creeper sobre bloques de Minecraft, con fuego, frente a Nipton en llamas](docs/creeper-nipton.webp)
+
 ![Bloques de Minecraft en la carretera de Nipton](docs/nipton.webp)
 
 > ⚠️ **En desarrollo / experimental.** Solo está probado en **CachyOS** (Hyprland, Steam + Proton, AMD RX 6700 XT
