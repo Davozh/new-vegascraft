@@ -123,3 +123,9 @@ los bloques colocados vuelven como objetos invisibles con colisión.
   cerca"). Sospechas: depth buffer de FNV mal elegido/limpio (FNV limpia la profundidad antes de las manos en 1ª
   persona), planos near/far distintos de los del NiCamera, o barreras por debajo del suelo real. Además la ventana de
   MC es 2536x1384 (no 16:9, Hyprland ignora el resize). Añadido F11: cicla DebugView del shader para medir.
+- 2026-10-03: **F11 (vista "profundidad de FNV") = gris uniforme → el depth buffer llega a 0** (z = near). Generic
+  Depth (add-on integrado de ReShade) está activo pero FNV limpia la profundidad antes de las manos en 1ª persona.
+  Arreglo estándar: `[DEPTH] DepthCopyBeforeClears=1` (copia antes de los clears; índice 0 = el clear con más
+  draws). Puesto en ReShade.ini e install.sh. Las capturas con Impr Pant no llegaron a la carpeta del juego (Hyprland
+  se queda la tecla); el usuario pasó capturas propias. "No deja interactuar": el modo construcción arranca apagado
+  tras reiniciar (B).
