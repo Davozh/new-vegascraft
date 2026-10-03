@@ -164,13 +164,34 @@ namespace
 		g_hasFrame = false;
 	}
 
+	/// Dynamic textures, written by locking them (see write_layer). The colour layers are created BGRA (D3D9's native
+	/// 8-bit order) and filled with Minecraft's RGBA bytes as they are; the effect swaps red and blue back when it
+	/// samples them. ReShade's update_texture_region would instead create a staging texture on every call and swap
+	/// each pixel on the CPU: ~19 ms per Minecraft frame at 2536x1384, on FNV's main thread.
 	bool create_layer(device *dev, Layer &layer, uint32_t w, uint32_t h, format fmt)
 	{
 		if (!dev->create_resource(
-				resource_desc(w, h, 1, 1, fmt, 1, memory_heap::default_, resource_usage::shader_resource | resource_usage::copy_dest),
+				resource_desc(w, h, 1, 1, fmt, 1, memory_heap::default_, resource_usage::shader_resource, resource_flags::dynamic),
 				nullptr, resource_usage::shader_resource, &layer.tex))
 			return false;
 		return dev->create_resource_view(layer.tex, resource_usage::shader_resource, resource_view_desc(fmt), &layer.srv);
+	}
+
+	/// Copies a w x h layer (4 bytes a pixel, rows packed) into a dynamic texture, discarding its old contents.
+	bool write_layer(device *dev, const Layer &layer, const uint8_t *src, uint32_t w, uint32_t h)
+	{
+		subresource_data mapped;
+		if (!dev->map_texture_region(layer.tex, 0, nullptr, map_access::write_discard, &mapped))
+			return false;
+		const size_t row = size_t(w) * 4;
+		auto *dst = static_cast<uint8_t *>(mapped.data);
+		if (mapped.row_pitch == row)
+			std::memcpy(dst, src, row * h);
+		else
+			for (uint32_t y = 0; y < h; ++y)
+				std::memcpy(dst + size_t(y) * mapped.row_pitch, src + y * row, row);
+		dev->unmap_texture_region(layer.tex, 0);
+		return true;
 	}
 
 	void bind(effect_runtime *runtime)
@@ -181,6 +202,24 @@ namespace
 	}
 
 	/// Upload the newest published Minecraft frame, if there is one we haven't shown yet.
+	/// Where a frame's time goes (milliseconds, summed until the next report in the ReShade log).
+	struct Timing
+	{
+		double map = 0, upload = 0, effects = 0, present = 0;
+		int frames = 0, uploads = 0;
+		LARGE_INTEGER lastPresent = {};
+	} g_timing;
+
+	double ms_since(const LARGE_INTEGER &start)
+	{
+		static LARGE_INTEGER freq = {};
+		if (freq.QuadPart == 0)
+			QueryPerformanceFrequency(&freq);
+		LARGE_INTEGER now;
+		QueryPerformanceCounter(&now);
+		return double(now.QuadPart - start.QuadPart) * 1000.0 / double(freq.QuadPart);
+	}
+
 	void upload(effect_runtime *runtime)
 	{
 		const int64_t published = read<int64_t>(g_view + 32);
@@ -200,9 +239,9 @@ namespace
 		if (w != g_width || h != g_height)
 		{
 			destroy_layers(dev);
-			if (!create_layer(dev, g_world, w, h, format::r8g8b8a8_unorm) ||
+			if (!create_layer(dev, g_world, w, h, format::b8g8r8a8_unorm) ||
 				!create_layer(dev, g_depth, w, h, format::r32_float) ||
-				!create_layer(dev, g_overlay, w, h, format::r8g8b8a8_unorm))
+				!create_layer(dev, g_overlay, w, h, format::b8g8r8a8_unorm))
 			{
 				destroy_layers(dev);
 				return;
@@ -213,19 +252,21 @@ namespace
 		}
 		const size_t layer = size_t(w) * h * 4;
 		const uint8_t *base = nullptr;
+		LARGE_INTEGER t0;
+		QueryPerformanceCounter(&t0);
 		const uint8_t *view = map_range(kHeader + g_stride * slot, layer * 3, &base);
+		g_timing.map += ms_since(t0);
+		QueryPerformanceCounter(&t0);
 		if (view == nullptr)
 			return;
-		subresource_data data;
-		data.row_pitch = w * 4;
-		data.slice_pitch = static_cast<uint32_t>(layer);
-		data.data = const_cast<uint8_t *>(base);
-		dev->update_texture_region(data, g_world.tex, 0);
-		data.data = const_cast<uint8_t *>(base + layer);
-		dev->update_texture_region(data, g_depth.tex, 0);
-		data.data = const_cast<uint8_t *>(base + 2 * layer);
-		dev->update_texture_region(data, g_overlay.tex, 0);
+		write_layer(dev, g_world, base, w, h);
+		write_layer(dev, g_depth, base + layer, w, h);
+		write_layer(dev, g_overlay, base + 2 * layer, w, h);
+		g_timing.upload += ms_since(t0);
+		++g_timing.uploads;
+		QueryPerformanceCounter(&t0);
 		UnmapViewOfFile(view);
+		g_timing.map += ms_since(t0);
 		if (read<int64_t>(desc) != seq)
 			return; // Minecraft rewrote the slot mid-copy: show the next one instead
 		g_lastPublish = published;
@@ -309,10 +350,31 @@ namespace
 	void on_present(effect_runtime *runtime)
 	{
 		watch_effect_file(runtime); // every frame, even when the effect failed to compile
+		if (g_timing.lastPresent.QuadPart != 0)
+			g_timing.present += ms_since(g_timing.lastPresent);
+		QueryPerformanceCounter(&g_timing.lastPresent);
+		if (++g_timing.frames >= 300)
+		{
+			const double n = g_timing.frames, u = std::max(g_timing.uploads, 1);
+			char line[200];
+			snprintf(line, sizeof(line), "VegasCraft timing: %.1f ms/frame (%.0f fps), effects %.2f ms/frame, upload %.2f ms + map %.2f ms per Minecraft frame (%d uploads), %ux%u",
+				g_timing.present / n, 1000.0 * n / std::max(g_timing.present, 1.0), g_timing.effects / n, g_timing.upload / u, g_timing.map / u, g_timing.uploads, g_width, g_height);
+			reshade::log::message(reshade::log::level::info, line);
+			const LARGE_INTEGER keep = g_timing.lastPresent;
+			g_timing = Timing();
+			g_timing.lastPresent = keep;
+		}
 	}
 
 	void on_begin_effects(effect_runtime *runtime, command_list *, resource_view, resource_view)
 	{
+		LARGE_INTEGER started;
+		QueryPerformanceCounter(&started);
+		struct AddTime
+		{
+			LARGE_INTEGER &from;
+			~AddTime() { g_timing.effects += ms_since(from); }
+		} addTime{started};
 		uint32_t bw = 0, bh = 0;
 		runtime->get_screenshot_width_and_height(&bw, &bh);
 		g_bbWidth = bw;

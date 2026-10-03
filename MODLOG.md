@@ -156,3 +156,10 @@ los bloques colocados vuelven como objetos invisibles con colisión.
   con cp+mv (cp sobre un DLL cargado lo reescribe en el sitio y puede tumbar FNV).
 - Lanzar los juegos desde el contenedor: socket IPC de Hyprland (config Lua): `dispatch hl.dsp.exec_cmd("...")`
   (`prismlauncher -l vegascraft`, `steam steam://rungameid/22380`).
+- 2026-10-03: **"congela y descongela" = subida de texturas.** Medido (log de tiempos del add-on cada 300 frames):
+  FNV 59 fps con F7 apagado, 39–45 fps (picos de 22) encendido; mapear el slot 0,3 ms, pero
+  `update_texture_region` x3 a 2536x1384 = **18,7 ms por frame de MC**, en el hilo principal. En D3D9, ReShade crea
+  una textura de subida en cada llamada (si la textura no es `dynamic`) y además invierte RGBA→BGRA píxel a píxel en
+  la CPU (`D3DFMT_A8R8G8B8`). Arreglo: texturas `resource_flags::dynamic`, BGRA, escritas con `map_texture_region`
+  (DISCARD) + memcpy; el shader lee `.bgra`. Pendiente medirlo, y bajar la resolución de MC (ventana flotante a
+  1920x1080: Hyprland 0.56 con config Lua → `hl.window_rule`, no `windowrulev2`).

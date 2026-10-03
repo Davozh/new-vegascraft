@@ -12,6 +12,8 @@ texture MCOverlayTex : MCOVERLAY;
 sampler sWorld { Texture = MCWorldTex; AddressU = CLAMP; AddressV = CLAMP; };
 sampler sDepth { Texture = MCDepthTex; MinFilter = POINT; MagFilter = POINT; AddressU = CLAMP; AddressV = CLAMP; };
 sampler sOverlay { Texture = MCOverlayTex; AddressU = CLAMP; AddressV = CLAMP; };
+// The add-on fills the colour layers with Minecraft's RGBA bytes into BGRA textures (D3D9's native order, no CPU
+// swizzle): swap red and blue back when sampling them.
 
 // x = near, y = far, z = flags (1: [0,1] depth, 2: rows bottom-up, 4: reversed Z). Set by the add-on.
 uniform float3 McPlanes = float3(0.05, 2048.0, 7.0);
@@ -200,7 +202,7 @@ void PS_Composite(float4 pos : SV_Position, float2 uv : TEXCOORD, out float4 out
 			break;
 		}
 	}
-	const float4 world = inside ? tex2D(sWorld, muv) : 0.0;
+	const float4 world = inside ? tex2D(sWorld, muv).bgra : 0.0;
 	if (!Reproject)
 		zm = mc_linear(tex2D(sDepth, muv).r);
 
@@ -311,7 +313,7 @@ float3 PS_Final(float4 pos : SV_Position, float2 uv : TEXCOORD) : SV_Target
 		const float3 purple = color * float3(0.72, 0.38, 1.25) + float3(0.12, 0.0, 0.22) * (0.6 + 0.4 * sin(t * 3.0 + r * 9.0));
 		color = lerp(color, purple, saturate(PortalWarp * (0.55 + r * 0.6)));
 	}
-	const float4 overlay = tex2D(sOverlay, float2(uv.x, 1.0 - uv.y)); // hand and HUD are screen-space: never shaken
+	const float4 overlay = tex2D(sOverlay, float2(uv.x, 1.0 - uv.y)).bgra; // hand and HUD are screen-space: never shaken
 	return overlay.rgb + saturate(color) * (1.0 - overlay.a);
 }
 
