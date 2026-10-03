@@ -118,3 +118,8 @@ los bloques colocados vuelven como objetos invisibles con colisión.
   en la pila sin alinear a 16 — GCC i686 supone pila alineada y no realineó (`subl $192,%esp`), Havok usa `movaps`.
   Arreglo: buffer alineado a mano + `-mincoming-stack-boundary=2` (GCC realinea con `andl $-16,%esp`).
   Lección: todo lo que se pase al motor/Havok con SSE debe alinearse a mano; FNV entra con pila de 4 bytes.
+- 2026-10-03: **rayos OK, construcción llega a MC, pero los bloques no se ven en FNV.** El frame de MC (leído de
+  /dev/shm) muestra los bloques a 0,25–1,2 m; la mano/HUD sí se componen → el depth test los descarta (FNV "más
+  cerca"). Sospechas: depth buffer de FNV mal elegido/limpio (FNV limpia la profundidad antes de las manos en 1ª
+  persona), planos near/far distintos de los del NiCamera, o barreras por debajo del suelo real. Además la ventana de
+  MC es 2536x1384 (no 16:9, Hyprland ignora el resize). Añadido F11: cicla DebugView del shader para medir.

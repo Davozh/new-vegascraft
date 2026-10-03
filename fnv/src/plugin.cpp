@@ -13,7 +13,8 @@
 // Building: B toggles build mode. In it the mouse belongs to Minecraft (left: break/attack, right: place/use, 1-9:
 // hotbar) and FNV's own fighting is disabled; out of it FNV fights as usual.
 //
-// Keys: F7 passthrough off/on, F8 re-level, F10 write the camera and player state to vegascraft.log.
+// Keys: F7 passthrough off/on, F8 re-level, F10 write the camera and player state to vegascraft.log, F11 the effect's
+// next debug view.
 // (Not F9: that is FNV's quick load.)
 #include "compositor.h"
 #include "fnv_game.h"
@@ -253,6 +254,11 @@ namespace
 		}
 		const bool relevel = pressed(VK_F8);
 		const bool dump = pressed(VK_F10);
+		if (pressed(VK_F11) && focused())
+		{
+			compositor::cycle_debug_view();
+			log("debug view changed");
+		}
 		if (pressed('B') && focused())
 		{
 			g_build = !g_build;

@@ -26,6 +26,8 @@ namespace compositor
 	/// The camera shake, applied to the finished picture (x, y: fraction of the screen height; roll: radians), and the
 	/// nether portal's warp (0..1).
 	void set_screen_fx(float shake_x, float shake_y, float shake_roll, float portal_warp);
+	/// Shows the effect's next debug view (composite, FNV depth bands, Minecraft depth bands, depth difference).
+	void cycle_debug_view();
 	/// FNV's backbuffer size as ReShade sees it (0 until the first frame).
 	void backbuffer_size(int &width, int &height);
 }

@@ -26,6 +26,7 @@ namespace
 	std::atomic<float> g_hostFar{5000.0f};
 	std::atomic<uint32_t> g_bbWidth{0}, g_bbHeight{0};
 	std::atomic<bool> g_cameraLocked{false};
+	std::atomic<int> g_debugView{-1}; // -1: leave the preset's value
 	std::atomic<float> g_lookLight{-1.0f}, g_lookBias{-1.0f}, g_lookSlope{-1.0f};
 	std::atomic<float> g_shakeX{0.0f}, g_shakeY{0.0f}, g_shakeRoll{0.0f}, g_portalWarp{0.0f};
 	float g_savedLight = -1.0f, g_savedBias = -1.0f, g_savedSlope = -1.0f;
@@ -325,6 +326,9 @@ namespace
 			runtime->set_uniform_value_bool(v, on);
 		if (!on)
 			return;
+		if (const int view = g_debugView.load(); view >= 0)
+			if (const effect_uniform_variable v = find_uniform(runtime, kEffect, "DebugView"); v.handle != 0)
+				runtime->set_uniform_value_int(v, view);
 		if (const effect_uniform_variable v = find_uniform(runtime, kEffect, "McPlanes"); v.handle != 0)
 			runtime->set_uniform_value_float(v, g_mcNear, g_mcFar, float(g_mcFlags));
 		// a scene's look overrides the preset's light matching and depth bias; the preset's values come back after
@@ -480,6 +484,11 @@ namespace compositor
 		std::lock_guard<std::mutex> lock(g_poseLock);
 		g_hostPoses[g_hostPoseCount & 3] = {yaw, pitch, roll, fov, x, y, z, true};
 		++g_hostPoseCount;
+	}
+
+	void cycle_debug_view()
+	{
+		g_debugView = (g_debugView.load() + 1) % 4;
 	}
 
 	void set_pose_lag(int frames)
