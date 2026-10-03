@@ -1,0 +1,5 @@
+universal-modder/
+*.dll
+*.jar
+build/
+.gradle/
