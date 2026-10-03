@@ -381,6 +381,9 @@ extern "C"
 	{
 		g_log = std::fopen("vegascraft.log", "w");
 		log("New VegasCraft loaded (xNVSE %08X, runtime %08X)", nvse->nvseVersion, nvse->runtimeVersion);
+		// ReShade (d3d9.dll) is loaded with the game: register now, before FNV creates its render targets, so the
+		// add-on can make the scene depth texture readable
+		log("ReShade add-on %s at load", compositor::try_register(g_module) ? "registered" : "not registered yet");
 		g_handle = nvse->GetPluginHandle();
 		g_messaging = static_cast<NVSEMessagingInterface *>(nvse->QueryInterface(kInterface_Messaging));
 		if (g_messaging == nullptr || !g_messaging->RegisterListener(g_handle, "NVSE", on_message))

@@ -4,6 +4,7 @@
 #include <atomic>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <mutex>
 #include <reshade.hpp>
@@ -406,6 +407,28 @@ namespace
 			runtime->set_uniform_value_float(v, tanHost, tanMc, float(g_width) / float(g_height));
 	}
 
+	/// FNV creates its scene depth buffer as a D24S8 *texture*. Generic Depth only turns depth *surfaces* into INTZ (it
+	/// leaves D24S8 textures alone, taking them for hardware PCF shadow maps), and a D24S8 texture can be neither
+	/// sampled nor copied in D3D9, so the effect saw an empty depth buffer. Make screen-sized depth textures INTZ (D24S8
+	/// that shaders can sample) when FNV creates them; the shadow maps are square and keep their format.
+	bool on_create_resource(device *dev, resource_desc &desc, subresource_data *, resource_usage)
+	{
+		if (dev->get_api() != device_api::d3d9 || desc.type != resource_type::texture_2d)
+			return false;
+		if ((desc.usage & resource_usage::depth_stencil) == 0 || desc.texture.samples > 1)
+			return false;
+		if (desc.texture.format != format::d24_unorm_s8_uint && desc.texture.format != format::d24_unorm_x8_uint)
+			return false;
+		if (desc.texture.width <= 1024 || desc.texture.width == desc.texture.height)
+			return false;
+		desc.texture.format = format::intz;
+		desc.usage |= resource_usage::shader_resource;
+		char message[96];
+		snprintf(message, sizeof(message), "VegasCraft: %ux%u depth texture created as INTZ", desc.texture.width, desc.texture.height);
+		reshade::log::message(reshade::log::level::info, message);
+		return true;
+	}
+
 	void on_reloaded_effects(effect_runtime *runtime)
 	{
 		if (g_width != 0)
@@ -427,6 +450,7 @@ namespace compositor
 			return true;
 		if (!reshade::register_addon(module))
 			return false;
+		reshade::register_event<reshade::addon_event::create_resource>(on_create_resource);
 		reshade::register_event<reshade::addon_event::reshade_begin_effects>(on_begin_effects);
 		reshade::register_event<reshade::addon_event::reshade_present>(on_present);
 		reshade::register_event<reshade::addon_event::reshade_reloaded_effects>(on_reloaded_effects);

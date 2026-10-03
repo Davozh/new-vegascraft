@@ -129,3 +129,10 @@ los bloques colocados vuelven como objetos invisibles con colisión.
   draws). Puesto en ReShade.ini e install.sh. Las capturas con Impr Pant no llegaron a la carpeta del juego (Hyprland
   se queda la tecla); el usuario pasó capturas propias. "No deja interactuar": el modo construcción arranca apagado
   tras reiniciar (B).
+- 2026-10-03: **panel Generic Depth** (captura del usuario): elegido `D24S8 2560x1440, 1664 draws`, copia en CLEAR 1
+  (1628 draws); también hay un INTZ 2560x1440 de 56 draws y D24S8 1024² (sombras). Causa del depth vacío:
+  Generic Depth solo cambia a INTZ las *surfaces*; las *texturas* D24S8 las salta (supone PCF de sombras), y en D3D9
+  una textura D24S8 no se puede muestrear ni copiar → backup vacío. Arreglo: el add-on registra `create_resource` y
+  convierte a INTZ las texturas de profundidad D24S8 no cuadradas de >1024 de ancho. El add-on se registra ya en
+  `NVSEPlugin_Load` (ReShade está cargado con el exe) para llegar antes de que FNV cree sus render targets.
+  Riesgo: si FNV muestrease esa textura con PCF, se vería mal algo de FNV.
