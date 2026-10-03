@@ -39,6 +39,8 @@ struct NVSEMessagingInterface
 	{
 		kMessage_PostLoad = 0,
 		kMessage_ExitGame = 1,
+		kMessage_PostLoadGame = 8,
+		kMessage_NewGame = 14,
 		kMessage_DeferredInit = 18,
 		kMessage_MainGameLoop = 20,
 	};

@@ -48,6 +48,13 @@ namespace fnv
 		return true;
 	}
 
+	/// TESObjectREFR::parentCell (0x40): null until the player is placed in the world (main menu, loading).
+	inline bool playerInWorld()
+	{
+		const uintptr_t p = player();
+		return p != 0 && *reinterpret_cast<const uintptr_t *>(p + 0x40) != 0;
+	}
+
 	/// TESObjectREFR: rotation (radians; z = heading, clockwise from north) at 0x24, position at 0x30.
 	inline bool readPlayer(Vec3 &pos, Vec3 &rot, bool &thirdPerson)
 	{

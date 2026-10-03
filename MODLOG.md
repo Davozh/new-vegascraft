@@ -82,3 +82,13 @@ los bloques colocados vuelven como objetos invisibles con colisión.
   - Shader `VegasCraft.fx`: el de GTA con Z normal y planos en metros. Sin probar en D3D9/SM3.
   - Escala: 70 unidades = 1 m. yOffset = 64 − pies/70 (el suelo bajo el jugador en y=64). Al enlazar se pone un
     pilar de diamante 4 bloques delante del jugador para alinear.
+- 2026-10-03: **primera prueba en el juego.** Plugin carga, enlaza con MC, el add-on se registra y abre los frames.
+  F9 de volcado confirmó: la vista es la columna 0 de la rotación (rumbo 1,3° → +Y norte; 121,6° → ESE); frustum
+  t=0.3904 → FOV vertical ~42.6°, near 5, far 353840 unidades. Fallos:
+  - F9 es la carga rápida de FNV → volcado movido a **F10**.
+  - El pilar se colocó en el menú principal (jugador sin celda, pies en 2048,2048,128) → ahora se espera a
+    `parentCell` (0x40) ≠ 0 y se re-nivela en PostLoadGame (8) / NewGame (14).
+  - **El shader no compila: `E5002 Static variables cannot have both numeric and resource components`.** Es el
+    compilador HLSL de Proton (vkd3d) rechazando lo que ReShade genera para D3D9 (struct estático sampler+float2).
+    Arreglo: `d3dcompiler_47.dll` de Microsoft (32 bits, sacado del instalador de Firefox 62 como hace winetricks)
+    en la carpeta del juego + `WINEDLLOVERRIDES="d3d9=n,b;d3dcompiler_47=n"`.

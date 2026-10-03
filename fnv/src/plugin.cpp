@@ -7,7 +7,8 @@
 // yOffset puts the ground where the player stands at Minecraft y = 64.
 // Minecraft yaw: 0 faces +z (south), 180 faces north; pitch is positive looking down.
 //
-// Keys: F7 passthrough off/on, F8 re-level, F9 write the camera and player state to vegascraft.log.
+// Keys: F7 passthrough off/on, F8 re-level, F10 write the camera and player state to vegascraft.log.
+// (Not F9: that is FNV's quick load.)
 #include "compositor.h"
 #include "fnv_game.h"
 #include "nvse_min.h"
@@ -135,12 +136,13 @@ namespace
 			log("passthrough %s", g_enabled ? "on" : "off");
 		}
 		const bool relevel = pressed(VK_F8);
-		const bool dump = pressed(VK_F9);
+		const bool dump = pressed(VK_F10);
 
 		fnv::Camera cam;
 		fnv::Vec3 feet, rot;
 		bool third = false;
-		if (!fnv::readCamera(cam) || !fnv::readPlayer(feet, rot, third))
+		// in the main menu the player exists but stands nowhere (no cell): nothing to show, nothing to level on
+		if (!fnv::readCamera(cam) || !fnv::readPlayer(feet, rot, third) || !fnv::playerInWorld())
 		{
 			compositor::set_active(false);
 			return;
@@ -210,6 +212,11 @@ namespace
 		{
 		case NVSEMessagingInterface::kMessage_MainGameLoop:
 			tick();
+			break;
+		case NVSEMessagingInterface::kMessage_PostLoadGame:
+		case NVSEMessagingInterface::kMessage_NewGame:
+			// another place: level the ground there
+			g_haveOffset = false;
 			break;
 		case NVSEMessagingInterface::kMessage_ExitGame:
 			g_ws.stop();
