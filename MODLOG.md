@@ -148,3 +148,11 @@ los bloques colocados vuelven como objetos invisibles con colisión.
   - Las teclas 1-8 también disparan los accesos rápidos de FNV; manos y HUD de FNV duplicados.
   - Ventana de MC 2536x1384 (no 16:9): fijarla flotante a 2560x1440 o al aspecto de FNV.
   - Probar interiores, viaje rápido, giros rápidos (desfase), tercera persona (0x64A vs 0x64C).
+- 2026-10-03: **temblor de los bloques al moverse.** Medido: MC publica a 120 fps constantes (intervalo máx 10 ms,
+  8 ms captura→publicación) → no es MC. Causa: la pose del compositor se leía en MainGameLoop, antes de que FNV
+  actualice la cámara del frame que dibuja → reproyección con la pose del frame anterior. Arreglo: xNVSE
+  `kMessage_OnFramePresent` (24, data int* = pantalla de carga; se envía justo antes de 0xB6B730, que presenta y donde
+  corre ReShade): ahí se fija la pose del compositor y se manda la cámara a MC. Además `install.sh` reemplaza el DLL
+  con cp+mv (cp sobre un DLL cargado lo reescribe en el sitio y puede tumbar FNV).
+- Lanzar los juegos desde el contenedor: socket IPC de Hyprland (config Lua): `dispatch hl.dsp.exec_cmd("...")`
+  (`prismlauncher -l vegascraft`, `steam steam://rungameid/22380`).

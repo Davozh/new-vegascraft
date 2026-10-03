@@ -116,6 +116,53 @@ namespace
 		return {c.rot[0][0], c.rot[1][0], c.rot[2][0]};
 	}
 
+	struct McPose
+	{
+		double x, y, z;
+		float yaw, pitch, fov, nearM, farM;
+	};
+
+	/// Minecraft's camera from FNV's: position, view direction -> yaw/pitch, vertical fov from the frustum.
+	McPose mc_pose(const fnv::Camera &cam)
+	{
+		McPose p;
+		to_mc(cam.pos, p.x, p.y, p.z);
+		const fnv::Vec3 f = camera_forward(cam);
+		const float dx = f.x, dy = f.z, dz = -f.y; // in Minecraft's axes
+		p.yaw = wrap_degrees(std::atan2(-dx, dz) * kRad2Deg);
+		p.pitch = std::asin(std::clamp(-dy, -1.0f, 1.0f)) * kRad2Deg;
+		p.fov = (std::atan(cam.top) - std::atan(cam.bottom)) * kRad2Deg;
+		p.nearM = cam.nearPlane / fnv::kUnitsPerMetre;
+		p.farM = cam.farPlane / fnv::kUnitsPerMetre;
+		return p;
+	}
+
+	/// Just before FNV presents a frame its camera is the one that frame was drawn with: hand that pose to the
+	/// compositor, so it re-projects Minecraft's picture onto exactly the picture on screen. (Read in the game loop,
+	/// the camera is the previous frame's: blocks shook by a frame's worth of movement whenever the player moved.)
+	void on_present(bool loadingScreen)
+	{
+		fnv::Camera cam;
+		if (loadingScreen || !g_haveOffset || !fnv::playerInWorld() || !fnv::readCamera(cam))
+			return;
+		const McPose p = mc_pose(cam);
+		compositor::set_host_planes(p.nearM, p.farM);
+		compositor::set_host_pose(p.yaw, p.pitch, 0.0f, p.fov, p.x, p.y, p.z);
+		if (!g_ws.connected())
+			return;
+		// and Minecraft renders from it too: its next frame then needs the least re-projection
+		fnv::Vec3 feet, rot;
+		bool third = false;
+		if (!fnv::readPlayer(feet, rot, third))
+			return;
+		double px, py, pz;
+		to_mc(feet, px, py, pz);
+		// FNV heading: clockwise from north. Minecraft: 180 = north, 270 = east
+		const float bodyYaw = wrap_degrees(180.0f + rot.z * kRad2Deg);
+		sendf("{\"t\":\"cam\",\"f\":%u,\"p\":[%.4f,%.4f,%.4f],\"r\":[%.3f,%.3f,0],\"fov\":%.3f,\"fp\":%s,\"pl\":[%.4f,%.4f,%.4f],\"h\":%.3f}",
+			g_frame, p.x, p.y, p.z, p.yaw, p.pitch, p.fov, third ? "false" : "true", px, py, pz, bodyYaw);
+	}
+
 	int64_t column_key(int x, int z)
 	{
 		return (int64_t(x) << 32) ^ uint32_t(z);
@@ -322,24 +369,6 @@ namespace
 		}
 		sample_ground(feet);
 
-		// Minecraft's camera from FNV's: position, view direction -> yaw/pitch, vertical fov from the frustum
-		double cx, cy, cz;
-		to_mc(cam.pos, cx, cy, cz);
-		const fnv::Vec3 f = camera_forward(cam);
-		const float dx = f.x, dy = f.z, dz = -f.y; // in Minecraft's axes
-		const float mcYaw = wrap_degrees(std::atan2(-dx, dz) * kRad2Deg);
-		const float mcPitch = std::asin(std::clamp(-dy, -1.0f, 1.0f)) * kRad2Deg;
-		const float fov = (std::atan(cam.top) - std::atan(cam.bottom)) * kRad2Deg;
-		compositor::set_host_planes(cam.nearPlane / fnv::kUnitsPerMetre, cam.farPlane / fnv::kUnitsPerMetre);
-		compositor::set_host_pose(mcYaw, mcPitch, 0.0f, fov, cx, cy, cz);
-
-		double px, py, pz;
-		to_mc(feet, px, py, pz);
-		// FNV heading: clockwise from north. Minecraft: 180 = north, 270 = east
-		const float bodyYaw = wrap_degrees(180.0f + rot.z * kRad2Deg);
-		sendf("{\"t\":\"cam\",\"f\":%u,\"p\":[%.4f,%.4f,%.4f],\"r\":[%.3f,%.3f,0],\"fov\":%.3f,\"fp\":%s,\"pl\":[%.4f,%.4f,%.4f],\"h\":%.3f}",
-			g_frame, cx, cy, cz, mcYaw, mcPitch, fov, third ? "false" : "true", px, py, pz, bodyYaw);
-
 		std::string message;
 		while (g_ws.poll(message))
 			if (message.find("\"hello\"") != std::string::npos)
@@ -352,6 +381,9 @@ namespace
 		{
 		case NVSEMessagingInterface::kMessage_MainGameLoop:
 			tick();
+			break;
+		case NVSEMessagingInterface::kMessage_OnFramePresent:
+			on_present(msg->data != nullptr && *static_cast<const int *>(msg->data) != 0);
 			break;
 		case NVSEMessagingInterface::kMessage_PostLoadGame:
 		case NVSEMessagingInterface::kMessage_NewGame:

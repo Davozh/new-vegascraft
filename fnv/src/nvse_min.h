@@ -43,6 +43,7 @@ struct NVSEMessagingInterface
 		kMessage_NewGame = 14,
 		kMessage_DeferredInit = 18,
 		kMessage_MainGameLoop = 20,
+		kMessage_OnFramePresent = 24, // data: int*, nonzero on a loading screen
 	};
 
 	uint32_t version;

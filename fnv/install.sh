@@ -48,7 +48,9 @@ fi
 # the plugin (build.sh) and the effect, enabled in the preset; McActive keeps FNV untouched until Minecraft is linked
 if [ -f "$HERE/build/vegascraft.dll" ]; then
 	mkdir -p "$FNV/Data/NVSE/Plugins"
-	cp -v "$HERE/build/vegascraft.dll" "$FNV/Data/NVSE/Plugins/"
+	# copy + rename: a running FNV keeps the old file (cp over a loaded DLL rewrites it in place and can crash the game)
+	cp "$HERE/build/vegascraft.dll" "$FNV/Data/NVSE/Plugins/vegascraft.dll.new"
+	mv -v "$FNV/Data/NVSE/Plugins/vegascraft.dll.new" "$FNV/Data/NVSE/Plugins/vegascraft.dll"
 fi
 cp -v "$HERE/shaders/VegasCraft.fx" "$HERE/../third_party/ReShade.fxh" "$HERE/../third_party/ReShadeUI.fxh" "$FNV/reshade-shaders/Shaders/"
 printf 'Techniques=VegasCraft@VegasCraft.fx\r\nTechniqueSorting=VegasCraft@VegasCraft.fx\r\n' > "$FNV/ReShadePreset.ini"
