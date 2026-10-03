@@ -6,3 +6,4 @@ build/
 third_party/
 test_out/
 __pycache__/
+fnv/build/

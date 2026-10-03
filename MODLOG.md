@@ -34,8 +34,8 @@ los bloques colocados vuelven como objetos invisibles con colisión.
 
 1. [x] Fake host en Linux: `host/fakehost.py` adaptado a `/dev/shm` → valida export de frames del mod Fabric.
 2. [x] Mod Fabric: sustituir `SharedMemory` por mapping de fichero; compilar con JDK 25.
-3. [ ] Plugin xNVSE mínimo: cargar, loguear, abrir WebSocket, enviar cámara.
-4. [ ] Add-on ReShade (x86, D3D9): subir frame y componer con el depth buffer de FNV.
+3. [~] Plugin xNVSE mínimo: cargar, loguear, abrir WebSocket, enviar cámara.
+4. [~] Add-on ReShade (x86, D3D9): subir frame y componer con el depth buffer de FNV.
 5. [ ] Un cubo de Minecraft visible en el sitio correcto del Mojave.
 6. [ ] Suelo por raycasts → barreras en Minecraft.
 7. [ ] Bloques colocados → objetos invisibles con colisión en FNV.
@@ -67,3 +67,18 @@ los bloques colocados vuelven como objetos invisibles con colisión.
   retraso, flags 7. `test_out/fakehost/comp_*.png`: bloques alineados sobre el suelo sintético y oclusión correcta.
   Problema: la ventana de MC salió 1053x1384 (Hyprland en mosaico ignora el resize). Hay que dejarla flotante
   (regla de Hyprland) para que tenga el tamaño y aspecto de FNV (gotcha 7 de GTA: HUD aplastado, ángulos torcidos).
+- 2026-10-03: **plugin `fnv/` escrito y compilado** (`fnv/build.sh`, mingw i686 posix, estático, 787 KB):
+  un solo `vegascraft.dll` en `Data/NVSE/Plugins` que es plugin xNVSE (MainGameLoop = 20) y add-on ReShade.
+  - Motor (de las cabeceras de JIP LN, GPL: solo se usan direcciones/offsets, no código): SceneGraph `*0x11DEB7C`,
+    cámara `+0xAC`; NiCamera: rot mundo 0x68, pos 0x8C, frustum 0xDC (l,r,t,b,near,far). Player `*0x11DEA3C`:
+    rot 0x24, pos 0x30, is3rdPerson 0x64A. Runtime 1.4.0.525 = 0x040020D0 (confirmado en nvse.log).
+  - Supuesto a verificar con F9: la dirección de vista es la columna 0 de la rotación (NiCamera mira por +X local).
+  - **Gotcha ABI:** ReShade está compilado con MSVC; un método virtual que devuelve struct
+    (`find_uniform_variable`) devuelve por puntero oculto en MSVC y en EDX:EAX en GCC. `find_uniform()` llama al
+    slot del vtable con `thiscall` y el puntero oculto. Otros métodos así (get_resource_desc, find_technique…) no se
+    usan; si se usan, necesitan el mismo trato.
+  - Mapping en Wine: `CreateFileW("Z:\\dev\\shm\\VegasCraftFrame")` + `CreateFileMapping`; cabecera fija, y cada slot
+    se mapea solo al subirlo (offset alineado a la granularidad) por el espacio de direcciones de 32 bits.
+  - Shader `VegasCraft.fx`: el de GTA con Z normal y planos en metros. Sin probar en D3D9/SM3.
+  - Escala: 70 unidades = 1 m. yOffset = 64 − pies/70 (el suelo bajo el jugador en y=64). Al enlazar se pone un
+    pilar de diamante 4 bloques delante del jugador para alinear.

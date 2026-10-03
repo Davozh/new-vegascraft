@@ -1,5 +1,5 @@
 #!/bin/bash
-# Instala en la carpeta de FNV lo que necesita New VegasCraft. Solo añade ficheros; `install.sh --remove` quita
+# Instala en la carpeta de FNV lo que necesita New VegasCraft (y el plugin de build.sh si está compilado). Solo añade ficheros; `install.sh --remove` quita
 # exactamente esos y devuelve el launcher original.
 #   xNVSE 6.4.9   nvse_1_4.dll, nvse_steam_loader.dll, Data/NVSE/nvse_config.ini; nvse_loader.exe ocupa el sitio de
 #                 FalloutNVLauncher.exe (el original queda como FalloutNVLauncher.vegascraft.exe), porque Steam en
@@ -10,14 +10,16 @@ set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
 RUNTIME=${RUNTIME:-$HERE/../third_party/runtime}
 FNV=${FNV_DIR:-/mnt/juegos/SteamLibrary/steamapps/common/Fallout New Vegas}
-FILES=(nvse_1_4.dll nvse_steam_loader.dll Data/NVSE/nvse_config.ini d3d9.dll ReShade.ini)
+FILES=(nvse_1_4.dll nvse_steam_loader.dll Data/NVSE/nvse_config.ini d3d9.dll ReShade.ini ReShadePreset.ini
+	Data/NVSE/Plugins/vegascraft.dll reshade-shaders/Shaders/VegasCraft.fx reshade-shaders/Shaders/ReShade.fxh
+	reshade-shaders/Shaders/ReShadeUI.fxh)
 
 if [ "$1" = "--remove" ]; then
 	for f in "${FILES[@]}"; do rm -fv "$FNV/$f"; done
 	if [ -f "$FNV/FalloutNVLauncher.vegascraft.exe" ]; then
 		mv -v "$FNV/FalloutNVLauncher.vegascraft.exe" "$FNV/FalloutNVLauncher.exe"
 	fi
-	rmdir "$FNV/Data/NVSE" 2>/dev/null || true
+	rmdir "$FNV/Data/NVSE/Plugins" "$FNV/Data/NVSE" "$FNV/reshade-shaders/Shaders" "$FNV/reshade-shaders/Textures" "$FNV/reshade-shaders" 2>/dev/null || true
 	exit 0
 fi
 
@@ -39,4 +41,11 @@ if [ ! -f "$FNV/ReShade.ini" ]; then
 	# FNV usa Z normal (no reversed) y profundidad sin invertir; el plano lejano se ajustará al calibrar
 	printf '[GENERAL]\r\nEffectSearchPaths=.\\reshade-shaders\\Shaders\\\r\nTextureSearchPaths=.\\reshade-shaders\\Textures\\\r\nPresetPath=.\\ReShadePreset.ini\r\nPreprocessorDefinitions=RESHADE_DEPTH_INPUT_IS_REVERSED=0,RESHADE_DEPTH_INPUT_IS_UPSIDE_DOWN=0,RESHADE_DEPTH_INPUT_IS_LOGARITHMIC=0,RESHADE_DEPTH_LINEARIZATION_FAR_PLANE=1000\r\n\r\n[OVERLAY]\r\nTutorialProgress=4\r\n' > "$FNV/ReShade.ini"
 fi
+# the plugin (build.sh) and the effect, enabled in the preset; McActive keeps FNV untouched until Minecraft is linked
+if [ -f "$HERE/build/vegascraft.dll" ]; then
+	mkdir -p "$FNV/Data/NVSE/Plugins"
+	cp -v "$HERE/build/vegascraft.dll" "$FNV/Data/NVSE/Plugins/"
+fi
+cp -v "$HERE/shaders/VegasCraft.fx" "$HERE/../third_party/ReShade.fxh" "$HERE/../third_party/ReShadeUI.fxh" "$FNV/reshade-shaders/Shaders/"
+printf 'Techniques=VegasCraft@VegasCraft.fx\r\nTechniqueSorting=VegasCraft@VegasCraft.fx\r\n' > "$FNV/ReShadePreset.ini"
 echo "listo. Opciones de lanzamiento en Steam: WINEDLLOVERRIDES=\"d3d9=n,b\" %command%"
