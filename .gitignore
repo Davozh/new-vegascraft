@@ -4,3 +4,5 @@ universal-modder/
 build/
 .gradle/
 third_party/
+test_out/
+__pycache__/

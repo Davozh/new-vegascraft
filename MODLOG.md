@@ -32,7 +32,7 @@ los bloques colocados vuelven como objetos invisibles con colisión.
 
 ## Plan (vertical slice primero)
 
-1. [~] Fake host en Linux: `host/fakehost.py` adaptado a `/dev/shm` → valida export de frames del mod Fabric.
+1. [x] Fake host en Linux: `host/fakehost.py` adaptado a `/dev/shm` → valida export de frames del mod Fabric.
 2. [x] Mod Fabric: sustituir `SharedMemory` por mapping de fichero; compilar con JDK 25.
 3. [ ] Plugin xNVSE mínimo: cargar, loguear, abrir WebSocket, enviar cámara.
 4. [ ] Add-on ReShade (x86, D3D9): subir frame y componer con el depth buffer de FNV.
@@ -62,3 +62,8 @@ los bloques colocados vuelven como objetos invisibles con colisión.
   jar copiado a la instancia Prism. `host/mcframe.py` lee `/dev/shm` en Linux.
 - Nota: el contenedor del agente comparte `/dev/shm` con el host (se ven `pulse-shm-*`), así que las pruebas
   del agente pueden leer los frames que escribe Minecraft en el host.
+- 2026-10-03: **fakehost OK en Linux.** MC nativo (Prism) + `host/fakehost.py` desde el contenedor: WebSocket
+  127.0.0.1:25599 alcanzable, `/dev/shm/VegasCraftFrame` 126 MB, 1796 frames en 15 s (~120 fps), 1 frame de
+  retraso, flags 7. `test_out/fakehost/comp_*.png`: bloques alineados sobre el suelo sintético y oclusión correcta.
+  Problema: la ventana de MC salió 1053x1384 (Hyprland en mosaico ignora el resize). Hay que dejarla flotante
+  (regla de Hyprland) para que tenga el tamaño y aspecto de FNV (gotcha 7 de GTA: HUD aplastado, ángulos torcidos).
