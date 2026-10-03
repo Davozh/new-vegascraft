@@ -3,7 +3,11 @@
 # threads), statically linked so FNV needs no mingw runtime DLLs.
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
-CXX=${CXX:-i686-w64-mingw32-g++-posix}
+# Debian/Ubuntu: i686-w64-mingw32-g++-posix; Arch/CachyOS (mingw-w64-gcc): i686-w64-mingw32-g++ (posix threads already)
+if [ -z "$CXX" ]; then
+	CXX=$(command -v i686-w64-mingw32-g++-posix || command -v i686-w64-mingw32-g++ || true)
+fi
+[ -n "$CXX" ] || { echo "falta mingw-w64 (i686): instala mingw-w64-gcc"; exit 1; }
 mkdir -p "$HERE/build"
 # FNV calls in with 4-byte stack alignment: let GCC realign where it needs 16
 "$CXX" -std=c++20 -O2 -mincoming-stack-boundary=2 -shared -o "$HERE/build/vegascraft.dll" \

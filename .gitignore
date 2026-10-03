@@ -7,3 +7,4 @@ third_party/
 test_out/
 __pycache__/
 fnv/build/
+!mc/gradle/wrapper/gradle-wrapper.jar
