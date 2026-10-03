@@ -32,8 +32,8 @@ los bloques colocados vuelven como objetos invisibles con colisión.
 
 ## Plan (vertical slice primero)
 
-1. [ ] Fake host en Linux: `host/fakehost.py` adaptado a `/dev/shm` → valida export de frames del mod Fabric.
-2. [ ] Mod Fabric: sustituir `SharedMemory` por mapping de fichero; compilar con JDK 25.
+1. [~] Fake host en Linux: `host/fakehost.py` adaptado a `/dev/shm` → valida export de frames del mod Fabric.
+2. [x] Mod Fabric: sustituir `SharedMemory` por mapping de fichero; compilar con JDK 25.
 3. [ ] Plugin xNVSE mínimo: cargar, loguear, abrir WebSocket, enviar cámara.
 4. [ ] Add-on ReShade (x86, D3D9): subir frame y componer con el depth buffer de FNV.
 5. [ ] Un cubo de Minecraft visible en el sitio correcto del Mojave.
@@ -54,3 +54,11 @@ los bloques colocados vuelven como objetos invisibles con colisión.
 - 2026-10-03: el ratón no aparece en FNV (Hyprland + Proton, pantalla completa exclusiva). En `Fallout.ini` y
   `FalloutPrefs.ini`: `bFull Screen=0` y `bBackground Mouse=1` (copias `*.vegascraft.bak`). Si sigue fallando:
   gamescope en las opciones de lanzamiento. Para el passthrough conviene ventana de todas formas.
+- 2026-10-03: xNVSE 6.4.9 y ReShade 6.8.0 verificados en el juego (consola `GetNVSEVersion`, `ReShade.log`: D3D9,
+  2560x1440 ventana, AMD RX 6700 XT — el ejemplo de GTA solo se probó en NVIDIA).
+- 2026-10-03: `mc/` copiado del ejemplo (MIT, ver `mc/LICENSE-universal-modder`). `SharedMemory` mapea
+  `/dev/shm/VegasCraftFrame` en Linux; nombre Win32 `Local\VegasCraftFrame`. MAX 2560x1440 (FNV es 32 bits y
+  también mapea esto: ~44 MB por slot; en FNV mapear solo el slot que se lee). Compila con JDK 25 / Gradle 9.7.1;
+  jar copiado a la instancia Prism. `host/mcframe.py` lee `/dev/shm` en Linux.
+- Nota: el contenedor del agente comparte `/dev/shm` con el host (se ven `pulse-shm-*`), así que las pruebas
+  del agente pueden leer los frames que escribe Minecraft en el host.

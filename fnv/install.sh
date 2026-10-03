@@ -34,6 +34,7 @@ fi
 cp -v "$RUNTIME/nvse/nvse_loader.exe" "$FNV/FalloutNVLauncher.exe"
 
 cp -v "$RUNTIME/reshade/ReShade32.dll" "$FNV/d3d9.dll"
+mkdir -p "$FNV/reshade-shaders/Shaders" "$FNV/reshade-shaders/Textures"
 if [ ! -f "$FNV/ReShade.ini" ]; then
 	# FNV usa Z normal (no reversed) y profundidad sin invertir; el plano lejano se ajustará al calibrar
 	printf '[GENERAL]\r\nEffectSearchPaths=.\\reshade-shaders\\Shaders\\\r\nTextureSearchPaths=.\\reshade-shaders\\Textures\\\r\nPresetPath=.\\ReShadePreset.ini\r\nPreprocessorDefinitions=RESHADE_DEPTH_INPUT_IS_REVERSED=0,RESHADE_DEPTH_INPUT_IS_UPSIDE_DOWN=0,RESHADE_DEPTH_INPUT_IS_LOGARITHMIC=0,RESHADE_DEPTH_LINEARIZATION_FAR_PLANE=1000\r\n\r\n[OVERLAY]\r\nTutorialProgress=4\r\n' > "$FNV/ReShade.ini"
