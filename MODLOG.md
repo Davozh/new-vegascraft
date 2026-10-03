@@ -34,9 +34,9 @@ los bloques colocados vuelven como objetos invisibles con colisión.
 
 1. [x] Fake host en Linux: `host/fakehost.py` adaptado a `/dev/shm` → valida export de frames del mod Fabric.
 2. [x] Mod Fabric: sustituir `SharedMemory` por mapping de fichero; compilar con JDK 25.
-3. [~] Plugin xNVSE mínimo: cargar, loguear, abrir WebSocket, enviar cámara.
-4. [~] Add-on ReShade (x86, D3D9): subir frame y componer con el depth buffer de FNV.
-5. [ ] Un cubo de Minecraft visible en el sitio correcto del Mojave.
+3. [x] Plugin xNVSE mínimo: cargar, loguear, abrir WebSocket, enviar cámara.
+4. [x] Add-on ReShade (x86, D3D9): subir frame y componer con el depth buffer de FNV.
+5. [x] Un cubo de Minecraft visible en el sitio correcto del Mojave.
 6. [ ] Suelo por raycasts → barreras en Minecraft.
 7. [ ] Bloques colocados → objetos invisibles con colisión en FNV.
 
@@ -92,3 +92,12 @@ los bloques colocados vuelven como objetos invisibles con colisión.
     compilador HLSL de Proton (vkd3d) rechazando lo que ReShade genera para D3D9 (struct estático sampler+float2).
     Arreglo: `d3dcompiler_47.dll` de Microsoft (32 bits, sacado del instalador de Firefox 62 como hace winetricks)
     en la carpeta del juego + `WINEDLLOVERRIDES="d3d9=n,b;d3dcompiler_47=n"`.
+- 2026-10-03: **HITO: Minecraft visible dentro de FNV.** Con `d3dcompiler_47` nativo, `VegasCraft.fx` compila en
+  1,7 s. Pilar de diamante 4 bloques delante del jugador en el Mojave, con la mano/HUD de Minecraft encima.
+  Pantallazos del usuario. Dos GPUs: FNV en la AMD RX 6700 XT, Minecraft en la NVIDIA RTX 5060 Ti (la copia por
+  /dev/shm lo hace indiferente). MC a ~120 fps.
+  Pendiente visto en las capturas:
+  - Minecraft se dibuja encima de los menús/mensajes de FNV (ReShade compone tras la UI) → apagar en menús.
+  - Se ven las manos de FNV y las de Steve a la vez, y el HUD de FNV bajo la barra de MC.
+  - Queda el pilar de una conexión anterior (los bloques de MC persisten en su mundo; `clear` solo quita barreras).
+  - Falta comprobar la oclusión (depth test) contra rocas/edificios y el desfase al girar rápido.
