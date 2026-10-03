@@ -3,3 +3,4 @@ universal-modder/
 *.jar
 build/
 .gradle/
+third_party/

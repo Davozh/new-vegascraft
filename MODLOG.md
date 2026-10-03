@@ -42,9 +42,15 @@ los bloques colocados vuelven como objetos invisibles con colisión.
 
 ## Pendiente de decidir / pedir al usuario
 
-- Permiso para instalar xNVSE (y quizá JIP LN NVSE) y ReShade en la carpeta del juego.
-- Instancia de Prism con Minecraft 26.3 + Fabric Loader 0.19.5 + Fabric API 0.161.0+26.3, game dir propio.
+- (hecho) xNVSE 6.4.9 + ReShade 6.8.0 add-on (32 bits, como `d3d9.dll`) instalados con `fnv/install.sh`.
+  `FalloutNVLauncher.exe` = nvse_loader; original en `FalloutNVLauncher.vegascraft.exe`. `--remove` deshace.
+  Steam necesita `WINEDLLOVERRIDES="d3d9=n,b" %command%`.
+- (hecho) Instancia Prism `vegascraft`: MC 26.3, intermediary 26.3, Fabric Loader 0.19.5, LWJGL 3.4.3,
+  Fabric API 0.161.0+26.3 en `minecraft/mods`. Java automático (necesita 25).
 
 ## Diario
 
 - 2026-10-03: proyecto creado, universal-modder clonado, `um scan` OK, backup de saves hecho.
+- 2026-10-03: el ratón no aparece en FNV (Hyprland + Proton, pantalla completa exclusiva). En `Fallout.ini` y
+  `FalloutPrefs.ini`: `bFull Screen=0` y `bBackground Mouse=1` (copias `*.vegascraft.bak`). Si sigue fallando:
+  gamescope en las opciones de lanzamiento. Para el passthrough conviene ventana de todas formas.
