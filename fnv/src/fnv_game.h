@@ -24,6 +24,7 @@ namespace fnv
 		float rot[3][3];
 		Vec3 pos;
 		float left, right, top, bottom, nearPlane, farPlane;
+		float worldToCam[4][4]; // 0x9C: what the engine projects with (WorldToScreen)
 	};
 
 	inline uintptr_t sceneGraph() { return *reinterpret_cast<uintptr_t *>(0x11DEB7C); }
@@ -48,6 +49,9 @@ namespace fnv
 		out.bottom = f[3];
 		out.nearPlane = f[4];
 		out.farPlane = f[5];
+		const float *w = reinterpret_cast<const float *>(cam + 0x9C);
+		for (int i = 0; i < 16; ++i)
+			out.worldToCam[i / 4][i % 4] = w[i];
 		return true;
 	}
 

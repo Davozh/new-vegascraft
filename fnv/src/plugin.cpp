@@ -14,7 +14,7 @@
 // hotbar) and FNV's own fighting is disabled; out of it FNV fights as usual.
 //
 // Keys: F7 passthrough off/on, F8 re-level, F10 write the camera and player state to vegascraft.log, F11 the effect's
-// next debug view.
+// next debug view, F12 a probe pillar where the crosshair hits, PageUp/PageDown Minecraft's fov +-1%.
 // (Not F9: that is FNV's quick load.)
 #include "compositor.h"
 #include "fnv_game.h"
@@ -63,6 +63,8 @@ namespace
 	bool g_build = false;
 	bool g_fightDisabledByUs = false;
 	bool g_mouseDown[2] = {};
+	fnv::Camera g_presentCam = {};  // the camera as it was when the last frame was presented
+	bool g_havePresentCam = false;
 	float g_fovScale = 1.0f; // tan(fov/2) multiplier, PageUp/PageDown: calibrates Minecraft's field of view to FNV's
 
 	void log(const char *fmt, ...)
@@ -147,6 +149,8 @@ namespace
 		fnv::Camera cam;
 		if (loadingScreen || !g_haveOffset || !fnv::playerInWorld() || !fnv::readCamera(cam))
 			return;
+		g_presentCam = cam;
+		g_havePresentCam = true;
 		const McPose p = mc_pose(cam);
 		compositor::set_host_planes(p.nearM, p.farM);
 		compositor::set_host_pose(p.yaw, p.pitch, 0.0f, p.fov, p.x, p.y, p.z);
@@ -266,6 +270,26 @@ namespace
 				sendf("{\"t\":\"slot\",\"n\":%d}", i);
 	}
 
+	/// F12: where FNV's crosshair ray hits its world, a 1x1x2 diamond pillar in Minecraft. It must stand exactly under
+	/// the crosshair and stay there as the player moves: a calibration of the whole FNV -> Minecraft mapping.
+	void place_probe(const fnv::Camera &cam)
+	{
+		const fnv::Vec3 f = camera_forward(cam);
+		fnv::Vec3 hit;
+		if (!fnv::rayCast(cam.pos, f, 20000.0f, hit))
+		{
+			log("probe: the crosshair ray hit nothing");
+			return;
+		}
+		double x, y, z;
+		to_mc(hit, x, y, z);
+		const int bx = int(std::floor(x)), by = int(std::floor(y + 0.01)), bz = int(std::floor(z));
+		sendf("{\"t\":\"cmd\",\"c\":\"fill %d %d %d %d %d %d minecraft:diamond_block\"}", bx, by, bz, bx, by + 1, bz);
+		log("probe: FNV hit %.1f %.1f %.1f (%.1f m away) -> Minecraft %.3f %.3f %.3f -> pillar at block %d %d %d", hit.x, hit.y, hit.z,
+			std::sqrt((hit.x - cam.pos.x) * (hit.x - cam.pos.x) + (hit.y - cam.pos.y) * (hit.y - cam.pos.y) + (hit.z - cam.pos.z) * (hit.z - cam.pos.z)) / fnv::kUnitsPerMetre,
+			x, y, z, bx, by, bz);
+	}
+
 	void dump_state(const fnv::Camera &c, const fnv::Vec3 &feet, const fnv::Vec3 &rot, bool third)
 	{
 		log("camera pos %.1f %.1f %.1f", c.pos.x, c.pos.y, c.pos.z);
@@ -285,6 +309,14 @@ namespace
 		int bw = 0, bh = 0;
 		compositor::backbuffer_size(bw, bh);
 		log("backbuffer %dx%d, link %s, yOffset %.3f", bw, bh, g_ws.connected() ? "up" : "down", g_yOffset);
+		if (g_havePresentCam)
+		{
+			const fnv::Camera &p = g_presentCam;
+			log("at present: camera pos %.1f %.1f %.1f, forward %.4f %.4f %.4f, frustum t %.4f r %.4f", p.pos.x, p.pos.y, p.pos.z,
+				p.rot[0][0], p.rot[1][0], p.rot[2][0], p.top, p.right);
+			for (int i = 0; i < 4; ++i)
+				log("at present: worldToCam row %d: % .5f % .5f % .5f % .2f", i, p.worldToCam[i][0], p.worldToCam[i][1], p.worldToCam[i][2], p.worldToCam[i][3]);
+		}
 	}
 
 	void tick()
@@ -312,6 +344,7 @@ namespace
 			if (fnv::readCamera(c))
 				log("fov scale %.4f -> Minecraft vertical fov %.3f", g_fovScale, 2.0f * std::atan((c.top - c.bottom) * 0.5f * g_fovScale) * kRad2Deg);
 		}
+		const bool probe = pressed(VK_F12) && focused();
 		if (pressed(VK_F11) && focused())
 		{
 			compositor::cycle_debug_view();
@@ -379,6 +412,8 @@ namespace
 			log("levelled: ground %.1f -> Minecraft y 64 (yOffset %.3f)%s", groundZ, g_yOffset, fnv::inInterior() ? " indoors" : "");
 		}
 		sample_ground(feet);
+		if (probe)
+			place_probe(cam);
 
 		std::string message;
 		while (g_ws.poll(message))

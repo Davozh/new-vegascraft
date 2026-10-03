@@ -169,3 +169,8 @@ los bloques colocados vuelven como objetos invisibles con colisión.
   La cámara de MC copia posición y rotación exactas (CameraMixin), así que la sospecha es el FOV: usamos el del
   frustum (42,65° vertical / 69,6° horizontal). Añadido: F10 registra también `SceneGraph+0xBC` (cameraFOV) y
   Re Pág / Av Pág escalan tan(fov/2) un 1% para calibrar en vivo.
+- 2026-10-03: barrido de FOV del usuario (escala 1,0 → 2,3 y vuelta) sin fijar los bloques → no es solo el FOV.
+  F10: `SceneGraph+0xBC` = 55 (= fDefault1stPersonFOV, el de los brazos), el ini dice fDefaultFOV=75 y el frustum
+  leído da 69,5° h / 42,65° v (75° h equivaldría a escala 1,105). Añadido: F10 vuelca `worldToCam` (0x9C) y la cámara
+  tal como estaba al presentar; F12 = sonda: rayo desde la cámara de FNV por la mira y pilar de diamante 1x2 en el
+  punto de impacto (debe quedar bajo la mira y no moverse al caminar).
