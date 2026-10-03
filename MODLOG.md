@@ -37,7 +37,7 @@ los bloques colocados vuelven como objetos invisibles con colisión.
 3. [x] Plugin xNVSE mínimo: cargar, loguear, abrir WebSocket, enviar cámara.
 4. [x] Add-on ReShade (x86, D3D9): subir frame y componer con el depth buffer de FNV.
 5. [x] Un cubo de Minecraft visible en el sitio correcto del Mojave.
-6. [ ] Suelo por raycasts → barreras en Minecraft.
+6. [x] Suelo por raycasts → barreras en Minecraft.
 7. [ ] Bloques colocados → objetos invisibles con colisión en FNV.
 
 ## Pendiente de decidir / pedir al usuario
@@ -141,3 +141,10 @@ los bloques colocados vuelven como objetos invisibles con colisión.
   2560x1440 x1 (la INTZ de 56 draws) y 512². En D3D9 un depth multimuestreado no se puede leer ni convertir a INTZ.
   `FalloutPrefs.ini` tenía `iMultiSample=4` → puesto a 0 (y `bTransparencyMultisampling=0`). El parche de texturas
   INTZ era una pista falsa (no es textura): retirado. **Requisito: FNV sin antialiasing MSAA.**
+- 2026-10-03: **HITO 2: construir en el Mojave.** Sin MSAA, Generic Depth convierte la profundidad a INTZ y el
+  depth test funciona: bloques de tierra apoyados en la carretera de Nipton, ocultos correctamente por el terreno,
+  con una flecha de ballesta clavada. Captura del usuario. Pendiente:
+  - Colisión en FNV: los bloques no paran al jugador ni a los NPCs (paso 7: eventos `blocks` → objetos invisibles).
+  - Las teclas 1-8 también disparan los accesos rápidos de FNV; manos y HUD de FNV duplicados.
+  - Ventana de MC 2536x1384 (no 16:9): fijarla flotante a 2560x1440 o al aspecto de FNV.
+  - Probar interiores, viaje rápido, giros rápidos (desfase), tercera persona (0x64A vs 0x64C).
