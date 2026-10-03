@@ -136,3 +136,8 @@ los bloques colocados vuelven como objetos invisibles con colisión.
   convierte a INTZ las texturas de profundidad D24S8 no cuadradas de >1024 de ancho. El add-on se registra ya en
   `NVSEPlugin_Load` (ReShade está cargado con el exe) para llegar antes de que FNV cree sus render targets.
   Riesgo: si FNV muestrease esa textura con PCF, se vería mal algo de FNV.
+- 2026-10-03: **causa real del depth vacío: MSAA.** Registro de recursos de profundidad en create_resource:
+  la de la escena es *surface* (type 5) D24S8 2560x1440 **samples 4** (usage 0x3030); también 1024² x4, una
+  2560x1440 x1 (la INTZ de 56 draws) y 512². En D3D9 un depth multimuestreado no se puede leer ni convertir a INTZ.
+  `FalloutPrefs.ini` tenía `iMultiSample=4` → puesto a 0 (y `bTransparencyMultisampling=0`). El parche de texturas
+  INTZ era una pista falsa (no es textura): retirado. **Requisito: FNV sin antialiasing MSAA.**
