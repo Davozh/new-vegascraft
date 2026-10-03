@@ -101,3 +101,16 @@ los bloques colocados vuelven como objetos invisibles con colisión.
   - Se ven las manos de FNV y las de Steve a la vez, y el HUD de FNV bajo la barra de MC.
   - Queda el pilar de una conexión anterior (los bloques de MC persisten en su mundo; `clear` solo quita barreras).
   - Falta comprobar la oclusión (depth test) contra rocas/edificios y el desfase al girar rápido.
+- 2026-10-03: **suelo y construcción** (sin probar aún en el juego):
+  - Rayos Havok: `TES::PickObject` (0x458440, thiscall, args `RayCastData*`, 1), estructura de 0xB0 alineada a 16
+    montada como `_GetRayCastObject` de JIP (escala Havok = unidades/7, hitFraction en 0x40, -1 en 0x44 y 0x50,
+    filtro en 0x24 = capa 6 | grupo de colisión del jugador vía player+0x68→+0x138→+0x594→+8→+0x2C).
+    Respaldo: `TES::GetTerrainHeight` (0x4572E0). TES `*0x11DEA10`, currentInterior en +0x34.
+  - Muestreo como en GTA: espiral de radio 32, 48 rayos por frame, desde 2,5 m sobre los pies (o sobre el terreno
+    si la ladera está más alta) hacia abajo 100 m; columnas de 2 barreras. Nivelado: suelo bajo el jugador → y 64;
+    se re-nivela en carga de partida, F8 o salto de >30 m en un frame (viaje rápido, puertas).
+  - Menús: `InterfaceManager` `*0x11D8A80` +0x0C (>1 = menú) → Minecraft se oculta y no se reenvía el ratón.
+  - Modo construcción (tecla B): bit Fight (1<<3) en player+0x680 (solo se quita si lo puso el plugin), clic
+    izq/der → `attack`/`use`, teclas 1-9 → hotbar. Solo con la ventana de FNV enfocada.
+  - is3rdPerson: JIP dice 0x64A, xNVSE 0x64C; F10 registra ambos para decidir.
+  - Quitado el pilar de prueba automático.

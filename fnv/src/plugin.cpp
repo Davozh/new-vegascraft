@@ -7,6 +7,12 @@
 // yOffset puts the ground where the player stands at Minecraft y = 64.
 // Minecraft yaw: 0 faces +z (south), 180 faces north; pitch is positive looking down.
 //
+// Ground: the plugin casts rays down through FNV's physics world in the columns around the player and sends them as
+// barrier columns, so Minecraft's blocks, mobs and items rest on FNV's terrain, rocks and buildings.
+//
+// Building: B toggles build mode. In it the mouse belongs to Minecraft (left: break/attack, right: place/use, 1-9:
+// hotbar) and FNV's own fighting is disabled; out of it FNV fights as usual.
+//
 // Keys: F7 passthrough off/on, F8 re-level, F10 write the camera and player state to vegascraft.log.
 // (Not F9: that is FNV's quick load.)
 #include "compositor.h"
@@ -19,6 +25,9 @@
 #include <cstdarg>
 #include <cstdio>
 #include <string>
+#include <unordered_set>
+#include <utility>
+#include <vector>
 
 namespace
 {
@@ -26,6 +35,12 @@ namespace
 	// Minecraft's window (and so its readback) is capped at about this many pixels; the effect scales it up
 	constexpr double kMaxMinecraftPixels = 1920.0 * 1080.0;
 	constexpr float kRad2Deg = 57.29577951f;
+	constexpr int kGroundRadius = 32;      // blocks around the player that get collision
+	constexpr int kGroundProbesPerTick = 48;
+	constexpr int kGroundDepth = 2;        // barrier layers under each surface
+	constexpr float kProbeAbove = 175.0f;  // probes start 2.5 m above the feet: indoors that finds the floor, not the roof
+	constexpr float kProbeRange = 7000.0f; // and look 100 m down
+	constexpr float kTeleport = 30.0f * fnv::kUnitsPerMetre; // a jump this far in one frame: fast travel, a door
 
 	HMODULE g_module = nullptr;
 	PluginHandle g_handle = 0;
@@ -41,6 +56,12 @@ namespace
 	float g_yOffset = 0.0f;
 	unsigned g_frame = 0;
 	bool g_keyDown[256] = {};
+	std::vector<std::pair<int, int>> g_spiral;
+	std::unordered_set<int64_t> g_sampled;
+	fnv::Vec3 g_lastFeet = {0, 0, 0};
+	bool g_build = false;
+	bool g_fightDisabledByUs = false;
+	bool g_mouseDown[2] = {};
 
 	void log(const char *fmt, ...)
 	{
@@ -94,16 +115,105 @@ namespace
 		return {c.rot[0][0], c.rot[1][0], c.rot[2][0]};
 	}
 
-	/// A test pillar 4 blocks in front of the player, so the first link shows something to line up against FNV.
-	void place_test_pillar(const fnv::Vec3 &feet, float heading)
+	int64_t column_key(int x, int z)
 	{
-		double x, y, z;
-		to_mc(feet, x, y, z);
-		const int bx = int(std::floor(x + std::sin(heading) * 4.0));
-		const int bz = int(std::floor(z - std::cos(heading) * 4.0));
-		const int by = int(std::floor(y + 0.01));
-		sendf("{\"t\":\"cmd\",\"c\":\"fill %d %d %d %d %d %d minecraft:diamond_block\"}", bx, by, bz, bx, by + 2, bz);
-		log("test pillar at Minecraft %d %d %d (player at %.2f %.2f %.2f)", bx, by, bz, x, y, z);
+		return (int64_t(x) << 32) ^ uint32_t(z);
+	}
+
+	/// Probes FNV's ground in the not yet sampled Minecraft columns nearest the player and sends them as barriers.
+	void sample_ground(const fnv::Vec3 &feet)
+	{
+		if (g_spiral.empty())
+		{
+			for (int dx = -kGroundRadius; dx <= kGroundRadius; ++dx)
+				for (int dz = -kGroundRadius; dz <= kGroundRadius; ++dz)
+					if (dx * dx + dz * dz <= kGroundRadius * kGroundRadius)
+						g_spiral.emplace_back(dx, dz);
+			std::sort(g_spiral.begin(), g_spiral.end(), [](auto &a, auto &b) {
+				return a.first * a.first + a.second * a.second < b.first * b.first + b.second * b.second;
+			});
+		}
+		const int px = int(std::floor(feet.x / fnv::kUnitsPerMetre)), pz = int(std::floor(-feet.y / fnv::kUnitsPerMetre));
+		const bool outside = !fnv::inInterior();
+		std::string columns;
+		int probes = 0;
+		for (const auto &[dx, dz] : g_spiral)
+		{
+			const int x = px + dx, z = pz + dz;
+			if (g_sampled.count(column_key(x, z)))
+				continue;
+			if (++probes > kGroundProbesPerTick)
+				break;
+			// Minecraft column (x, z) covers FNV x in [x, x+1) m and y in (-z-1, -z] m: probe its centre
+			const float fx = (x + 0.5f) * fnv::kUnitsPerMetre, fy = -(z + 0.5f) * fnv::kUnitsPerMetre;
+			float start = feet.z + kProbeAbove;
+			float land = 0.0f;
+			const bool haveLand = outside && fnv::terrainHeight(fx, fy, land);
+			if (haveLand && land > start - 50.0f)
+				start = land + 50.0f; // a hillside above the player: a ray from inside the hill would miss it
+			fnv::Vec3 hit;
+			float groundZ;
+			if (fnv::rayCast({fx, fy, start}, {0.0f, 0.0f, -1.0f}, kProbeRange, hit))
+				groundZ = hit.z;
+			else if (haveLand)
+				groundZ = land;
+			else
+				continue; // collision not loaded yet: try again later
+			g_sampled.insert(column_key(x, z));
+			const int top = int(std::floor(groundZ / fnv::kUnitsPerMetre + g_yOffset + 0.5f)) - 1;
+			char entry[64];
+			snprintf(entry, sizeof(entry), "%s%d,%d,%d,%d", columns.empty() ? "" : ",", x, z, top - kGroundDepth + 1, top);
+			columns += entry;
+		}
+		if (!columns.empty())
+			g_ws.send("{\"t\":\"ground\",\"c\":[" + columns + "]}");
+	}
+
+	/// The game window has the focus (the keys and buttons are meant for FNV, not another program).
+	bool focused()
+	{
+		DWORD pid = 0;
+		GetWindowThreadProcessId(GetForegroundWindow(), &pid);
+		return pid == GetCurrentProcessId();
+	}
+
+	void set_fight_disabled(bool disabled)
+	{
+		uint8_t &flags = fnv::disabledControls();
+		if (disabled)
+		{
+			if (!(flags & fnv::kControlFight))
+				g_fightDisabledByUs = true;
+			flags |= fnv::kControlFight;
+		}
+		else if (g_fightDisabledByUs)
+		{
+			flags &= ~fnv::kControlFight;
+			g_fightDisabledByUs = false;
+		}
+	}
+
+	void forward_mouse(int index, int vk, const char *key, bool allowed)
+	{
+		const bool down = allowed && (GetAsyncKeyState(vk) & 0x8000) != 0;
+		if (down != g_mouseDown[index])
+		{
+			g_mouseDown[index] = down;
+			sendf("{\"t\":\"key\",\"k\":\"%s\",\"down\":%s}", key, down ? "true" : "false");
+		}
+	}
+
+	/// Build mode: Minecraft gets the mouse and the hotbar keys, FNV doesn't fight.
+	void build_tick(bool active)
+	{
+		set_fight_disabled(active);
+		forward_mouse(0, VK_LBUTTON, "attack", active);
+		forward_mouse(1, VK_RBUTTON, "use", active);
+		if (!active)
+			return;
+		for (int i = 0; i < 9; ++i)
+			if (pressed('1' + i))
+				sendf("{\"t\":\"slot\",\"n\":%d}", i);
 	}
 
 	void dump_state(const fnv::Camera &c, const fnv::Vec3 &feet, const fnv::Vec3 &rot, bool third)
@@ -112,8 +222,14 @@ namespace
 		for (int i = 0; i < 3; ++i)
 			log("camera rot row %d: % .4f % .4f % .4f", i, c.rot[i][0], c.rot[i][1], c.rot[i][2]);
 		log("frustum l %.4f r %.4f t %.4f b %.4f near %.2f far %.1f", c.left, c.right, c.top, c.bottom, c.nearPlane, c.farPlane);
-		log("player feet %.1f %.1f %.1f, rot %.3f %.3f %.3f (heading %.1f deg), third person %d", feet.x, feet.y, feet.z,
-			rot.x, rot.y, rot.z, rot.z * kRad2Deg, third ? 1 : 0);
+		log("player feet %.1f %.1f %.1f, rot %.3f %.3f %.3f (heading %.1f deg), third person %d (0x64A) / %d (0x64C)", feet.x, feet.y, feet.z,
+			rot.x, rot.y, rot.z, rot.z * kRad2Deg, third ? 1 : 0, *reinterpret_cast<const uint8_t *>(fnv::player() + 0x64C));
+		float land = 0.0f;
+		fnv::Vec3 hit = {0, 0, 0};
+		const bool haveLand = fnv::terrainHeight(feet.x, feet.y, land);
+		const bool haveHit = fnv::rayCast({feet.x, feet.y, feet.z + kProbeAbove}, {0, 0, -1}, kProbeRange, hit);
+		log("ground under the player: terrain %s %.1f, ray %s %.1f; interior %d, menu %d, build %d", haveLand ? "yes" : "no", land,
+			haveHit ? "hit" : "miss", hit.z, fnv::inInterior() ? 1 : 0, fnv::inMenu() ? 1 : 0, g_build ? 1 : 0);
 		int bw = 0, bh = 0;
 		compositor::backbuffer_size(bw, bh);
 		log("backbuffer %dx%d, link %s, yOffset %.3f", bw, bh, g_ws.connected() ? "up" : "down", g_yOffset);
@@ -137,6 +253,11 @@ namespace
 		}
 		const bool relevel = pressed(VK_F8);
 		const bool dump = pressed(VK_F10);
+		if (pressed('B') && focused())
+		{
+			g_build = !g_build;
+			log("build mode %s", g_build ? "on" : "off");
+		}
 
 		fnv::Camera cam;
 		fnv::Vec3 feet, rot;
@@ -151,7 +272,10 @@ namespace
 			dump_state(cam, feet, rot, third);
 
 		const bool linked = g_ws.connected();
-		compositor::set_active(g_enabled && linked);
+		const bool menu = fnv::inMenu();
+		// menus (Pip-Boy, dialogue, messages) are drawn before ReShade composites: hide Minecraft while one is open
+		compositor::set_active(g_enabled && linked && !menu);
+		build_tick(g_build && g_enabled && linked && !menu && focused());
 		if (!linked)
 			return;
 
@@ -173,14 +297,24 @@ namespace
 			sendf("{\"t\":\"view\",\"w\":%d,\"h\":%d}", int(bw * scale + 0.5), int(bh * scale + 0.5));
 		}
 
+		const float jumpX = feet.x - g_lastFeet.x, jumpY = feet.y - g_lastFeet.y, jumpZ = feet.z - g_lastFeet.z;
+		if (jumpX * jumpX + jumpY * jumpY + jumpZ * jumpZ > kTeleport * kTeleport)
+			g_haveOffset = false; // fast travel or a door: level the new place
+		g_lastFeet = feet;
 		if (!g_haveOffset || relevel)
 		{
-			// no ground probe yet: the player's feet stand for the ground
-			g_yOffset = 64.0f - feet.z / fnv::kUnitsPerMetre;
+			// the ground under the player at Minecraft y = 64
+			float groundZ = feet.z;
+			fnv::Vec3 hit;
+			if (fnv::rayCast({feet.x, feet.y, feet.z + kProbeAbove}, {0, 0, -1}, kProbeRange, hit))
+				groundZ = hit.z;
+			g_yOffset = 64.0f - groundZ / fnv::kUnitsPerMetre;
 			g_haveOffset = true;
+			g_sampled.clear();
 			g_ws.send("{\"t\":\"clear\"}");
-			place_test_pillar(feet, rot.z);
+			log("levelled: ground %.1f -> Minecraft y 64 (yOffset %.3f)%s", groundZ, g_yOffset, fnv::inInterior() ? " indoors" : "");
 		}
+		sample_ground(feet);
 
 		// Minecraft's camera from FNV's: position, view direction -> yaw/pitch, vertical fov from the frustum
 		double cx, cy, cz;
