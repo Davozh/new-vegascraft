@@ -4,6 +4,7 @@
 #pragma once
 #include <cstdint>
 #include <initializer_list>
+#include <new>
 
 namespace fnv
 {
@@ -113,7 +114,9 @@ namespace fnv
 		const uintptr_t t = tes();
 		if (t == 0)
 			return false;
-		RayCastData rc = {};
+		// Havok reads it with aligned SSE loads, and FNV calls the plugin with a stack only 4-byte aligned: align by hand
+		alignas(16) uint8_t storage[sizeof(RayCastData) + 16];
+		RayCastData &rc = *new (reinterpret_cast<void *>((reinterpret_cast<uintptr_t>(storage) + 15) & ~uintptr_t(15))) RayCastData();
 		rc.from[0] = from.x * kHavokScale;
 		rc.from[1] = from.y * kHavokScale;
 		rc.from[2] = from.z * kHavokScale;

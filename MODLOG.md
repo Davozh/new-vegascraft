@@ -114,3 +114,7 @@ los bloques colocados vuelven como objetos invisibles con colisión.
     izq/der → `attack`/`use`, teclas 1-9 → hotbar. Solo con la ventana de FNV enfocada.
   - is3rdPerson: JIP dice 0x64A, xNVSE 0x64C; F10 registra ambos para decidir.
   - Quitado el pilar de prueba automático.
+- 2026-10-03: **crash al enlazar** (el log se corta antes de `levelled`, en el primer rayo). Causa: `RayCastData`
+  en la pila sin alinear a 16 — GCC i686 supone pila alineada y no realineó (`subl $192,%esp`), Havok usa `movaps`.
+  Arreglo: buffer alineado a mano + `-mincoming-stack-boundary=2` (GCC realinea con `andl $-16,%esp`).
+  Lección: todo lo que se pase al motor/Havok con SSE debe alinearse a mano; FNV entra con pila de 4 bytes.
