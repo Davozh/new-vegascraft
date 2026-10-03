@@ -163,3 +163,9 @@ los bloques colocados vuelven como objetos invisibles con colisión.
   la CPU (`D3DFMT_A8R8G8B8`). Arreglo: texturas `resource_flags::dynamic`, BGRA, escritas con `map_texture_region`
   (DISCARD) + memcpy; el shader lee `.bgra`. Pendiente medirlo, y bajar la resolución de MC (ventana flotante a
   1920x1080: Hyprland 0.56 con config Lua → `hl.window_rule`, no `windowrulev2`).
+- 2026-10-03: **VERIFICADO el arreglo de la subida:** 5,0–5,3 ms por frame de MC (antes 18,7), FNV a 58 fps con el
+  passthrough (59 sin él). El usuario confirma que los bloques ya no se estiran ni se congelan.
+- 2026-10-03: nuevo síntoma: **los bloques "nadan" al girar la cámara** (se desplazan respecto al paisaje y vuelven).
+  La cámara de MC copia posición y rotación exactas (CameraMixin), así que la sospecha es el FOV: usamos el del
+  frustum (42,65° vertical / 69,6° horizontal). Añadido: F10 registra también `SceneGraph+0xBC` (cameraFOV) y
+  Re Pág / Av Pág escalan tan(fov/2) un 1% para calibrar en vivo.

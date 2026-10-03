@@ -63,6 +63,7 @@ namespace
 	bool g_build = false;
 	bool g_fightDisabledByUs = false;
 	bool g_mouseDown[2] = {};
+	float g_fovScale = 1.0f; // tan(fov/2) multiplier, PageUp/PageDown: calibrates Minecraft's field of view to FNV's
 
 	void log(const char *fmt, ...)
 	{
@@ -131,7 +132,8 @@ namespace
 		const float dx = f.x, dy = f.z, dz = -f.y; // in Minecraft's axes
 		p.yaw = wrap_degrees(std::atan2(-dx, dz) * kRad2Deg);
 		p.pitch = std::asin(std::clamp(-dy, -1.0f, 1.0f)) * kRad2Deg;
-		p.fov = (std::atan(cam.top) - std::atan(cam.bottom)) * kRad2Deg;
+		const float halfTan = (cam.top - cam.bottom) * 0.5f * g_fovScale;
+		p.fov = 2.0f * std::atan(halfTan) * kRad2Deg;
 		p.nearM = cam.nearPlane / fnv::kUnitsPerMetre;
 		p.farM = cam.farPlane / fnv::kUnitsPerMetre;
 		return p;
@@ -269,7 +271,9 @@ namespace
 		log("camera pos %.1f %.1f %.1f", c.pos.x, c.pos.y, c.pos.z);
 		for (int i = 0; i < 3; ++i)
 			log("camera rot row %d: % .4f % .4f % .4f", i, c.rot[i][0], c.rot[i][1], c.rot[i][2]);
-		log("frustum l %.4f r %.4f t %.4f b %.4f near %.2f far %.1f", c.left, c.right, c.top, c.bottom, c.nearPlane, c.farPlane);
+		log("frustum l %.4f r %.4f t %.4f b %.4f near %.2f far %.1f -> fov %.2f x %.2f deg; SceneGraph cameraFOV (0xBC) %.2f; fov scale %.4f",
+			c.left, c.right, c.top, c.bottom, c.nearPlane, c.farPlane, 2 * std::atan(c.right) * kRad2Deg, 2 * std::atan(c.top) * kRad2Deg,
+			*reinterpret_cast<const float *>(fnv::sceneGraph() + 0xBC), g_fovScale);
 		log("player feet %.1f %.1f %.1f, rot %.3f %.3f %.3f (heading %.1f deg), third person %d (0x64A) / %d (0x64C)", feet.x, feet.y, feet.z,
 			rot.x, rot.y, rot.z, rot.z * kRad2Deg, third ? 1 : 0, *reinterpret_cast<const uint8_t *>(fnv::player() + 0x64C));
 		float land = 0.0f;
@@ -301,6 +305,13 @@ namespace
 		}
 		const bool relevel = pressed(VK_F8);
 		const bool dump = pressed(VK_F10);
+		if ((pressed(VK_PRIOR) || pressed(VK_NEXT)) && focused())
+		{
+			g_fovScale *= g_keyDown[VK_PRIOR] ? 1.01f : 1.0f / 1.01f;
+			fnv::Camera c;
+			if (fnv::readCamera(c))
+				log("fov scale %.4f -> Minecraft vertical fov %.3f", g_fovScale, 2.0f * std::atan((c.top - c.bottom) * 0.5f * g_fovScale) * kRad2Deg);
+		}
 		if (pressed(VK_F11) && focused())
 		{
 			compositor::cycle_debug_view();
