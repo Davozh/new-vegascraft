@@ -28,6 +28,14 @@ namespace
 	std::atomic<uint32_t> g_bbWidth{0}, g_bbHeight{0};
 	std::atomic<bool> g_cameraLocked{false};
 	std::atomic<int> g_debugView{-1}; // -1: leave the preset's value
+	std::atomic<int> g_captureLeft{0}, g_captureEvery{5};
+	int g_captureFrame = 0, g_captureId = 0;
+	struct UsedPoses
+	{
+		float hy = 0, hp = 0, hf = 0, my = 0, mp = 0, mf = 0;
+		double hx = 0, hyy = 0, hz = 0, mx = 0, myy = 0, mz = 0;
+		bool valid = false;
+	} g_used; // the poses the last composite used
 	std::atomic<float> g_lookLight{-1.0f}, g_lookBias{-1.0f}, g_lookSlope{-1.0f};
 	std::atomic<float> g_shakeX{0.0f}, g_shakeY{0.0f}, g_shakeRoll{0.0f}, g_portalWarp{0.0f};
 	float g_savedLight = -1.0f, g_savedBias = -1.0f, g_savedSlope = -1.0f;
@@ -350,6 +358,17 @@ namespace
 	void on_present(effect_runtime *runtime)
 	{
 		watch_effect_file(runtime); // every frame, even when the effect failed to compile
+		if (g_captureLeft.load() > 0 && (g_captureFrame++ % std::max(g_captureEvery.load(), 1)) == 0)
+		{
+			char tag[32], line[320];
+			snprintf(tag, sizeof(tag), "vc%03d", ++g_captureId);
+			runtime->save_screenshot(tag);
+			const UsedPoses &u = g_used;
+			snprintf(line, sizeof(line), "VegasCraft capture %s host %.3f %.3f %.3f pos %.4f %.4f %.4f | minecraft %.3f %.3f %.3f pos %.4f %.4f %.4f | warp %d",
+				tag, u.hy, u.hp, u.hf, u.hx, u.hyy, u.hz, u.my, u.mp, u.mf, u.mx, u.myy, u.mz, u.valid ? 1 : 0);
+			reshade::log::message(reshade::log::level::info, line);
+			--g_captureLeft;
+		}
 		if (g_timing.lastPresent.QuadPart != 0)
 			g_timing.present += ms_since(g_timing.lastPresent);
 		QueryPerformanceCounter(&g_timing.lastPresent);
@@ -435,6 +454,7 @@ namespace
 		if (const effect_uniform_variable v = find_uniform(runtime, kEffect, "PosePrediction"); v.handle != 0)
 			runtime->get_uniform_value_float(v, &predict, 1);
 		const bool warp = host.valid && g_mcPose.valid && !g_cameraLocked;
+		g_used = {host.yaw, host.pitch, host.fov, g_mcPose.yaw, g_mcPose.pitch, g_mcPose.fov, host.x, host.y, host.z, g_mcPose.x, g_mcPose.y, g_mcPose.z, warp};
 		if (warp && prev.valid && predict != 0.0f)
 		{
 			auto delta = [](float a, float b) { float d = std::fmod(a - b + 540.0f, 360.0f) - 180.0f; return d; };
@@ -547,6 +567,12 @@ namespace compositor
 		std::lock_guard<std::mutex> lock(g_poseLock);
 		g_hostPoses[g_hostPoseCount & 3] = {yaw, pitch, roll, fov, x, y, z, true};
 		++g_hostPoseCount;
+	}
+
+	void request_capture(int count, int every)
+	{
+		g_captureEvery = every;
+		g_captureLeft = count;
 	}
 
 	void cycle_debug_view()
