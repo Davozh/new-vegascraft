@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """Analyses a Shift+F12 motion capture: for each synchronised ReShade screenshot, draws where the F12 probe pillar
 should be at FNV's pose (magenta) and where Minecraft's frame put it (cyan), finds the real pillar by its diamond
-colour, and prints the offsets in pixels. Usage: motion.py outdir [game dir]"""
+colour, and prints the offsets in pixels. Usage: [PILLAR="x y z"] motion.py outdir [game dir]"""
 import glob, os, re, sys
 import numpy as np
 from PIL import Image, ImageDraw
 out = sys.argv[1]; game = sys.argv[2] if len(sys.argv) > 2 else "/mnt/juegos/SteamLibrary/steamapps/common/Fallout New Vegas"
 os.makedirs(out, exist_ok=True)
 vlog = open(os.path.join(game, "vegascraft.log")).read().splitlines()
-bx, by, bz = map(int, [l for l in vlog if l.startswith("probe: FNV hit")][-1].split("pillar at block ")[1].split())
+probes = [l for l in vlog if l.startswith("probe: FNV hit")]
+# the pillar stays in Minecraft's world across FNV restarts: PILLAR="x y z" when this session's log has no probe line
+bx, by, bz = map(int, (probes[-1].split("pillar at block ")[1] if probes else os.environ["PILLAR"]).split())
 caps = {}
 for l in open(os.path.join(game, "ReShade.log"), errors="replace"):
     m = re.search(r"VegasCraft capture (vc\d+) host (\S+) (\S+) (\S+) pos (\S+) (\S+) (\S+) \| minecraft (\S+) (\S+) (\S+) pos (\S+) (\S+) (\S+)", l)

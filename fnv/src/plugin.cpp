@@ -4,7 +4,7 @@
 // the ReShade add-on (compositor.cpp), which composites Minecraft's frame into FNV's picture.
 //
 // Coordinates: 70 FNV units = 1 m = 1 block. FNV (x east, y north, z up) -> Minecraft (x, z + yOffset, -y).
-// yOffset puts the ground where the player stands at Minecraft y = 64.
+// yOffset is fixed outdoors (kExteriorYOffset); indoors it puts the ground under the player at Minecraft y = 64.
 // Minecraft yaw: 0 faces +z (south), 180 faces north; pitch is positive looking down.
 //
 // Ground: the plugin casts rays down through FNV's physics world in the columns around the player and sends them as
@@ -15,7 +15,7 @@
 //
 // Keys: F7 passthrough off/on, F8 re-level, F10 write the camera and player state to vegascraft.log, F11 the effect's
 // next debug view, F12 a probe pillar where the crosshair hits, Shift+F12 a
-// motion capture (synchronised screenshots + poses), PageUp/PageDown Minecraft's fov +-1%.
+// motion capture (synchronised screenshots + poses).
 // (Not F9: that is FNV's quick load.)
 #include "compositor.h"
 #include "fnv_game.h"
@@ -43,6 +43,8 @@ namespace
 	constexpr float kProbeAbove = 175.0f;  // probes start 2.5 m above the feet: indoors that finds the floor, not the roof
 	constexpr float kProbeRange = 7000.0f; // and look 100 m down
 	constexpr float kTeleport = 30.0f * fnv::kUnitsPerMetre; // a jump this far in one frame: fast travel, a door
+	// Mojave heights (~0-300 m) land at Minecraft y ~ -34..266, inside its -64..320 build range; Nipton's ground ~64
+	constexpr float kExteriorYOffset = -34.0f;
 
 	HMODULE g_module = nullptr;
 	PluginHandle g_handle = 0;
@@ -66,7 +68,6 @@ namespace
 	bool g_mouseDown[2] = {};
 	fnv::Camera g_presentCam = {};  // the camera as it was when the last frame was presented
 	bool g_havePresentCam = false;
-	float g_fovScale = 1.0f; // tan(fov/2) multiplier, PageUp/PageDown: calibrates Minecraft's field of view to FNV's
 
 	void log(const char *fmt, ...)
 	{
@@ -135,7 +136,7 @@ namespace
 		const float dx = f.x, dy = f.z, dz = -f.y; // in Minecraft's axes
 		p.yaw = wrap_degrees(std::atan2(-dx, dz) * kRad2Deg);
 		p.pitch = std::asin(std::clamp(-dy, -1.0f, 1.0f)) * kRad2Deg;
-		const float halfTan = (cam.top - cam.bottom) * 0.5f * g_fovScale;
+		const float halfTan = (cam.top - cam.bottom) * 0.5f;
 		p.fov = 2.0f * std::atan(halfTan) * kRad2Deg;
 		p.nearM = cam.nearPlane / fnv::kUnitsPerMetre;
 		p.farM = cam.farPlane / fnv::kUnitsPerMetre;
@@ -296,9 +297,9 @@ namespace
 		log("camera pos %.1f %.1f %.1f", c.pos.x, c.pos.y, c.pos.z);
 		for (int i = 0; i < 3; ++i)
 			log("camera rot row %d: % .4f % .4f % .4f", i, c.rot[i][0], c.rot[i][1], c.rot[i][2]);
-		log("frustum l %.4f r %.4f t %.4f b %.4f near %.2f far %.1f -> fov %.2f x %.2f deg; SceneGraph cameraFOV (0xBC) %.2f; fov scale %.4f",
+		log("frustum l %.4f r %.4f t %.4f b %.4f near %.2f far %.1f -> fov %.2f x %.2f deg; SceneGraph cameraFOV (0xBC) %.2f",
 			c.left, c.right, c.top, c.bottom, c.nearPlane, c.farPlane, 2 * std::atan(c.right) * kRad2Deg, 2 * std::atan(c.top) * kRad2Deg,
-			*reinterpret_cast<const float *>(fnv::sceneGraph() + 0xBC), g_fovScale);
+			*reinterpret_cast<const float *>(fnv::sceneGraph() + 0xBC));
 		log("player feet %.1f %.1f %.1f, rot %.3f %.3f %.3f (heading %.1f deg), third person %d (0x64A) / %d (0x64C)", feet.x, feet.y, feet.z,
 			rot.x, rot.y, rot.z, rot.z * kRad2Deg, third ? 1 : 0, *reinterpret_cast<const uint8_t *>(fnv::player() + 0x64C));
 		float land = 0.0f;
@@ -338,13 +339,6 @@ namespace
 		}
 		const bool relevel = pressed(VK_F8);
 		const bool dump = pressed(VK_F10);
-		if ((pressed(VK_PRIOR) || pressed(VK_NEXT)) && focused())
-		{
-			g_fovScale *= g_keyDown[VK_PRIOR] ? 1.01f : 1.0f / 1.01f;
-			fnv::Camera c;
-			if (fnv::readCamera(c))
-				log("fov scale %.4f -> Minecraft vertical fov %.3f", g_fovScale, 2.0f * std::atan((c.top - c.bottom) * 0.5f * g_fovScale) * kRad2Deg);
-		}
 		const bool f12 = pressed(VK_F12) && focused();
 		const bool shift = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
 		const bool probe = f12 && !shift;
@@ -408,16 +402,20 @@ namespace
 		g_lastFeet = feet;
 		if (!g_haveOffset || relevel)
 		{
-			// the ground under the player at Minecraft y = 64
+			// The Mojave keeps one fixed offset, so what was built stays at the same height after a reload or fast
+			// travel (levelling to the ground underfoot each time moved every build up or down by up to a block).
+			// Interiors have coordinates of their own: there the ground under the player goes to Minecraft y = 64.
+			const bool indoors = fnv::inInterior();
 			float groundZ = feet.z;
 			fnv::Vec3 hit;
 			if (fnv::rayCast({feet.x, feet.y, feet.z + kProbeAbove}, {0, 0, -1}, kProbeRange, hit))
 				groundZ = hit.z;
-			g_yOffset = 64.0f - groundZ / fnv::kUnitsPerMetre;
+			g_yOffset = indoors ? 64.0f - groundZ / fnv::kUnitsPerMetre : kExteriorYOffset;
 			g_haveOffset = true;
 			g_sampled.clear();
 			g_ws.send("{\"t\":\"clear\"}");
-			log("levelled: ground %.1f -> Minecraft y 64 (yOffset %.3f)%s", groundZ, g_yOffset, fnv::inInterior() ? " indoors" : "");
+			log("levelled: ground %.1f -> Minecraft y %.2f (yOffset %.3f)%s", groundZ, groundZ / fnv::kUnitsPerMetre + g_yOffset, g_yOffset,
+				indoors ? " indoors" : "");
 		}
 		sample_ground(feet);
 		if (probe)

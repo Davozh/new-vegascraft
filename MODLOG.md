@@ -174,3 +174,12 @@ los bloques colocados vuelven como objetos invisibles con colisión.
   leído da 69,5° h / 42,65° v (75° h equivaldría a escala 1,105). Añadido: F10 vuelca `worldToCam` (0x9C) y la cámara
   tal como estaba al presentar; F12 = sonda: rayo desde la cámara de FNV por la mira y pilar de diamante 1x2 en el
   punto de impacto (debe quedar bajo la mira y no moverse al caminar).
+- 2026-10-04: **calibración en parado: correcta.** `host/predict.py` dibuja el pilar de la sonda F12 según la cámara
+  de FNV (F10) sobre una captura (`host/fnvshot.py`, solo si FNV está en el escritorio visible): coincide al píxel
+  desde dos posiciones a ~12 m (la parte baja tapada por el terreno, como debe). Coordenadas, FOV y escala bien.
+  `worldToCam` confirma el FOV del frustum (tan h/2 0,6941, v/2 0,3904).
+- 2026-10-04: dos fallos reales encontrados en la grabación Mayús+F12 (inservible para medir: escala de FOV 1,75 y el
+  usuario quieto): (1) Re Pág/Av Pág dejaban el FOV desajustado → **retiradas**; (2) **re-nivelar en cada carga movía
+  todo lo construido** (yOffset −33,906 → −33,018: 0,9 m) → en exteriores yOffset **fijo = −34** (Mojave 0–300 m →
+  y −34..266, dentro de −64..320); interiores siguen nivelando al suelo (coordenadas propias por celda; pendiente:
+  separarlos en Minecraft para que no se solapen con el Mojave).
