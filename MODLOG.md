@@ -187,3 +187,9 @@ los bloques colocados vuelven como objetos invisibles con colisión.
   depende del movimiento (en parado cuadra). Sospecha: la cámara leída en OnFramePresent es ya la del frame siguiente
   (pose adelantada un frame). Añadido: Insert cicla el pose lag del compositor 0/1/2; Mayús+F12 espera 90 frames y
   graba 20 capturas cada 3 frames, con las poses de FNV del frame y los 2 anteriores (para medir el lag real).
+- 2026-10-04: **el "patinar" no es de la imagen.** Captura retardada (lag 2, 0 y 1): MC va 1–5 cm (1–3 frames)
+  detrás de FNV al caminar, corregido por la reproyección; pose lag correcto = 0. Las capturas muestran que el bloque
+  está **físicamente dentro del cartel de Nipton** (el tablero lo corta en diagonal; de lado lo atraviesa): es la
+  intersección 3D correcta. Causa: el suelo se muestreaba como piel (2 barreras bajo la superficie más alta), y MC dejaba
+  poner bloques dentro de carteles, rocas o casas. Arreglo: columnas macizas desde el terreno (GetTerrainHeight) hasta
+  la superficie más alta (máx. 24 bloques). Pendiente: los rayos (capa 6) también tocan NPCs.

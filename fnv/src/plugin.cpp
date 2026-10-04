@@ -40,6 +40,7 @@ namespace
 	constexpr int kGroundRadius = 32;      // blocks around the player that get collision
 	constexpr int kGroundProbesPerTick = 48;
 	constexpr int kGroundDepth = 2;        // barrier layers under each surface
+	constexpr int kMaxSolidColumn = 24;    // at most this many blocks of barrier between a surface and the land under it
 	constexpr float kProbeAbove = 175.0f;  // probes start 2.5 m above the feet: indoors that finds the floor, not the roof
 	constexpr float kProbeRange = 7000.0f; // and look 100 m down
 	constexpr float kTeleport = 30.0f * fnv::kUnitsPerMetre; // a jump this far in one frame: fast travel, a door
@@ -217,8 +218,17 @@ namespace
 				continue; // collision not loaded yet: try again later
 			g_sampled.insert(column_key(x, z));
 			const int top = int(std::floor(groundZ / fnv::kUnitsPerMetre + g_yOffset + 0.5f)) - 1;
+			// Solid from the landscape up to the highest surface the ray hit: a sign, a rock or a house is then a block of
+			// barriers, not a skin on top of empty air that Minecraft blocks could be placed inside of. (Overhangs and
+			// arches get filled too; capped so a bridge doesn't become a tower.)
+			int bottom = top - kGroundDepth + 1;
+			if (haveLand)
+			{
+				const int landTop = int(std::floor(land / fnv::kUnitsPerMetre + g_yOffset + 0.5f)) - 1;
+				bottom = std::max(std::min(bottom, landTop - kGroundDepth + 1), top - kMaxSolidColumn);
+			}
 			char entry[64];
-			snprintf(entry, sizeof(entry), "%s%d,%d,%d,%d", columns.empty() ? "" : ",", x, z, top - kGroundDepth + 1, top);
+			snprintf(entry, sizeof(entry), "%s%d,%d,%d,%d", columns.empty() ? "" : ",", x, z, bottom, top);
 			columns += entry;
 		}
 		if (!columns.empty())
