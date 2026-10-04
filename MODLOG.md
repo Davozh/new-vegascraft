@@ -183,3 +183,7 @@ los bloques colocados vuelven como objetos invisibles con colisión.
   todo lo construido** (yOffset −33,906 → −33,018: 0,9 m) → en exteriores yOffset **fijo = −34** (Mojave 0–300 m →
   y −34..266, dentro de −64..320); interiores siguen nivelando al suelo (coordenadas propias por celda; pendiente:
   separarlos en Minecraft para que no se solapen con el Mojave).
+- 2026-10-04: el usuario: "si me muevo a la izquierda los bloques atraviesan el cartel de Nipton" → desfase que
+  depende del movimiento (en parado cuadra). Sospecha: la cámara leída en OnFramePresent es ya la del frame siguiente
+  (pose adelantada un frame). Añadido: Insert cicla el pose lag del compositor 0/1/2; Mayús+F12 espera 90 frames y
+  graba 20 capturas cada 3 frames, con las poses de FNV del frame y los 2 anteriores (para medir el lag real).

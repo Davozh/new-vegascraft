@@ -15,7 +15,7 @@
 //
 // Keys: F7 passthrough off/on, F8 re-level, F10 write the camera and player state to vegascraft.log, F11 the effect's
 // next debug view, F12 a probe pillar where the crosshair hits, Shift+F12 a
-// motion capture (synchronised screenshots + poses).
+// motion capture (synchronised screenshots + poses), Insert the compositor's pose lag 0/1/2 frames.
 // (Not F9: that is FNV's quick load.)
 #include "compositor.h"
 #include "fnv_game.h"
@@ -344,8 +344,15 @@ namespace
 		const bool probe = f12 && !shift;
 		if (f12 && shift)
 		{
-			compositor::request_capture(12, 5);
-			log("motion capture: 12 screenshots, one every 5 frames (yOffset %.3f)", g_yOffset);
+			// starts 1.5 s later, so the player can be walking by then
+			compositor::request_capture(20, 3, 90);
+			log("motion capture: 20 screenshots, one every 3 frames, starting in 90 frames (yOffset %.3f, pose lag %d)", g_yOffset, compositor::pose_lag());
+		}
+		if (pressed(VK_INSERT) && focused())
+		{
+			const int lag = (compositor::pose_lag() + 1) % 3;
+			compositor::set_pose_lag(lag);
+			log("pose lag %d frame(s)", lag);
 		}
 		if (pressed(VK_F11) && focused())
 		{

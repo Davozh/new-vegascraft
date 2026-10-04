@@ -28,7 +28,7 @@ namespace
 	std::atomic<uint32_t> g_bbWidth{0}, g_bbHeight{0};
 	std::atomic<bool> g_cameraLocked{false};
 	std::atomic<int> g_debugView{-1}; // -1: leave the preset's value
-	std::atomic<int> g_captureLeft{0}, g_captureEvery{5};
+	std::atomic<int> g_captureLeft{0}, g_captureEvery{5}, g_captureDelay{0};
 	int g_captureFrame = 0, g_captureId = 0;
 	struct UsedPoses
 	{
@@ -51,7 +51,7 @@ namespace
 	// while the picture being presented was rendered with the one before: re-project to that (g_poseLag back).
 	Pose g_hostPoses[4];
 	unsigned g_hostPoseCount = 0;
-	std::atomic<int> g_poseLag{0}; // measured: 0 matches best (third and first person)
+	std::atomic<int> g_poseLag{0}; // FNV: set live with Insert while measuring
 	Pose g_mcPose;
 
 	HANDLE g_file = INVALID_HANDLE_VALUE;
@@ -358,7 +358,9 @@ namespace
 	void on_present(effect_runtime *runtime)
 	{
 		watch_effect_file(runtime); // every frame, even when the effect failed to compile
-		if (g_captureLeft.load() > 0 && (g_captureFrame++ % std::max(g_captureEvery.load(), 1)) == 0)
+		if (g_captureLeft.load() > 0 && g_captureDelay.load() > 0)
+			--g_captureDelay;
+		else if (g_captureLeft.load() > 0 && (g_captureFrame++ % std::max(g_captureEvery.load(), 1)) == 0)
 		{
 			char tag[32], line[320];
 			snprintf(tag, sizeof(tag), "vc%03d", ++g_captureId);
@@ -367,6 +369,16 @@ namespace
 			snprintf(line, sizeof(line), "VegasCraft capture %s host %.3f %.3f %.3f pos %.4f %.4f %.4f | minecraft %.3f %.3f %.3f pos %.4f %.4f %.4f | warp %d",
 				tag, u.hy, u.hp, u.hf, u.hx, u.hyy, u.hz, u.my, u.mp, u.mf, u.mx, u.myy, u.mz, u.valid ? 1 : 0);
 			reshade::log::message(reshade::log::level::info, line);
+			{
+				// the host poses of this frame and the two before: which one the picture really matches tells the pose lag
+				std::lock_guard<std::mutex> lock(g_poseLock);
+				for (unsigned back = 0; back < 3 && back < g_hostPoseCount; ++back)
+				{
+					const Pose &h = g_hostPoses[(g_hostPoseCount - 1 - back) & 3];
+					snprintf(line, sizeof(line), "VegasCraft capture %s back %u host %.3f %.3f %.3f pos %.4f %.4f %.4f lag %d", tag, back, h.yaw, h.pitch, h.fov, h.x, h.y, h.z, g_poseLag.load());
+					reshade::log::message(reshade::log::level::info, line);
+				}
+			}
 			--g_captureLeft;
 		}
 		if (g_timing.lastPresent.QuadPart != 0)
@@ -569,10 +581,17 @@ namespace compositor
 		++g_hostPoseCount;
 	}
 
-	void request_capture(int count, int every)
+	void request_capture(int count, int every, int delay)
 	{
 		g_captureEvery = every;
+		g_captureDelay = delay;
+		g_captureFrame = 0;
 		g_captureLeft = count;
+	}
+
+	int pose_lag()
+	{
+		return g_poseLag.load();
 	}
 
 	void cycle_debug_view()
